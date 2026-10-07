@@ -19,6 +19,7 @@ from urllib.parse import parse_qs
 
 from website_audit import VERSION as AUDIT_VERSION, PublicFetcher, audit_website, clean_url
 from neighborhoods import SOURCE_URL as NEIGHBORHOOD_SOURCE, enrich_neighborhoods
+from research_workspace import ResearchWorkspace
 
 ROOT = Path(__file__).resolve().parent
 STAGES = ("New", "Researching", "Qualified", "Not a fit")
@@ -77,7 +78,7 @@ def atomic_json(path, value):
     os.replace(temporary, path)
 
 
-class Workspace:
+class Workspace(ResearchWorkspace):
     def __init__(self, directory):
         self.directory = Path(directory).resolve()
         self.lock = threading.RLock()
@@ -99,12 +100,14 @@ class Workspace:
             raise ValueError("website_audits.json must contain an object")
         self.audit_job = {"status": "idle", "message": "Ready to analyze websites", "completed": 0, "total": 0, "skipped": 0}
         self.audit_cancel = threading.Event()
+        self.init_research()
         self.reload()
 
     def reload(self):
         path = self.directory / "processed" / "businesses.jsonl"
         try:
             rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()] if path.exists() else []
+            rows += list(self.research["external"].values())
             if any(not isinstance(r, dict) or not r.get("_id") or not r.get("name") for r in rows):
                 raise ValueError("Dataset contains a record without an ID or name")
             if len({r["_id"] for r in rows}) != len(rows):
@@ -130,7 +133,7 @@ class Workspace:
                                     **self.workflow.get(r["_id"], {})}
                 latest = self.audits.get(r["_id"], {}).get("latest")
                 copy["audit"] = {key: latest.get(key) for key in ("reachability", "score", "grade", "checked_at", "requested_url", "final_url", "http_status", "message", "audit_version")} if latest else None
-                businesses.append(copy)
+                businesses.append(self.decorate_business(copy))
             return {"businesses": businesses, "report": self.report, "error": self.load_error, "audit_version": AUDIT_VERSION, "neighborhood_source": NEIGHBORHOOD_SOURCE,
                     "summary": {"total": len(businesses),
                                 "websites": sum(bool(r.get("websites")) for r in businesses),
@@ -144,7 +147,7 @@ class Workspace:
         identity = payload.get("id")
         if not isinstance(identity, str):
             raise ValueError("A business ID is required")
-        patch = {key: value for key, value in payload.items() if key in {"shortlisted", "stage", "notes"}}
+        patch = {key: value for key, value in payload.items() if key in {"shortlisted", "stage", "notes", "business_status", "business_evidence", "website_identity", "identity_evidence", "identity_url"}}
         if not patch:
             raise ValueError("No research changes supplied")
         if "shortlisted" in patch and not isinstance(patch["shortlisted"], bool):
@@ -153,9 +156,25 @@ class Workspace:
             raise ValueError("Unknown research stage")
         if "notes" in patch and (not isinstance(patch["notes"], str) or len(patch["notes"]) > 12000):
             raise ValueError("Notes must be text, up to 12,000 characters")
+        if "business_status" in patch and patch["business_status"] not in {"unknown", "operating", "temporarily_closed", "permanently_closed"}:
+            raise ValueError("Unknown business status")
+        if "website_identity" in patch and patch["website_identity"] not in {"unverified", "confirmed"}:
+            raise ValueError("Unknown website identity status")
+        for key in ("business_evidence", "identity_evidence", "identity_url"):
+            if key in patch and (not isinstance(patch[key], str) or len(patch[key]) > 3000):
+                raise ValueError("Evidence must be text up to 3,000 characters")
         with self.lock:
             if identity not in self.by_id:
                 raise KeyError("Business no longer exists in the current dataset")
+            combined = {**self.workflow.get(identity, {}), **patch}
+            if patch.get("business_status", "unknown") != "unknown" and not combined.get("business_evidence", "").strip():
+                raise ValueError("Add dated/source evidence before assigning an operating or closed status")
+            if patch.get("website_identity") == "confirmed":
+                if not combined.get("identity_evidence", "").strip() or not combined.get("identity_url"):
+                    raise ValueError("Add the matched website URL and identity evidence")
+                patch["identity_url"] = clean_url(combined["identity_url"])
+            if "business_status" in patch:
+                patch["business_checked_at"] = timestamp()
             updated = {**self.workflow.get(identity, {}), **patch, "updated_at": timestamp()}
             candidate = {**self.workflow, identity: updated}
             atomic_json(self.workflow_file, candidate)
@@ -168,7 +187,8 @@ class Workspace:
         buffer = io.StringIO(newline="")
         fields = ["name", "category", "neighborhood", "neighborhood_method", "neighborhood_source", "street_address", "city", "postcode", "websites", "website_status",
                   "phones", "emails", "research_stage", "shortlisted", "notes", "source_url", "attribution", "license_url",
-                  "audited_url", "website_reachability", "http_status", "technical_seo_score", "seo_grade", "audit_date", "suggested_improvements"]
+                  "audited_url", "website_reachability", "http_status", "technical_seo_score", "seo_grade", "audit_date", "suggested_improvements",
+                  "business_status", "business_evidence", "website_identity", "identity_evidence", "location_type", "service_area", "social_urls", "contact_pages", "contact_evidence_json", "enrichment_date", "website_checked_at", "website_check_source", "contact_disagreements"]
         writer = csv.DictWriter(buffer, fieldnames=fields)
         writer.writeheader()
         with self.lock:
@@ -178,19 +198,24 @@ class Workspace:
                 r = self.by_id[identity]
                 a, w = r.get("address", {}), self.workflow.get(identity, {})
                 audit = self.audits.get(identity, {}).get("latest", {})
+                enriched = self.decorate_business({**r, "workflow": w, "audit": audit or None})
                 row = {"name": r["name"], "category": r.get("category", ""),
                        "neighborhood": r.get("neighborhood"), "neighborhood_method": r.get("neighborhood_method"), "neighborhood_source": NEIGHBORHOOD_SOURCE,
                        "street_address": " ".join(a.get(k) or "" for k in ("house_number", "street", "unit")).strip(),
                        "city": a.get("city"), "postcode": a.get("postcode"),
                        "websites": "; ".join(r.get("websites", [])), "website_status": r.get("website_status"),
-                       "phones": "; ".join(r.get("phones", [])), "emails": "; ".join(r.get("emails", [])),
+                       "phones": "; ".join(enriched.get("phones", [])), "emails": "; ".join(enriched.get("emails", [])),
                        "research_stage": w.get("stage", "New"), "shortlisted": w.get("shortlisted", False),
                        "notes": w.get("notes", ""), "source_url": r.get("source", {}).get("url", ""),
                        "attribution": "© OpenStreetMap contributors", "license_url": "https://www.openstreetmap.org/copyright",
-                       "audited_url": audit.get("requested_url"), "website_reachability": audit.get("reachability"),
+                       "audited_url": audit.get("requested_url"), "website_reachability": enriched["research_status"]["website"],
                        "http_status": audit.get("http_status"), "technical_seo_score": audit.get("score"),
                        "seo_grade": audit.get("grade"), "audit_date": audit.get("checked_at"),
-                       "suggested_improvements": " | ".join(c.get("recommendation", "") for c in audit.get("recommendations", []))}
+                       "suggested_improvements": " | ".join(c.get("recommendation", "") for c in audit.get("recommendations", [])),
+                       "business_status": enriched["research_status"]["business"], "business_evidence": w.get("business_evidence", ""), "website_identity": enriched["research_status"]["identity"], "identity_evidence": w.get("identity_evidence", ""),
+                       "location_type": enriched["research_status"]["location_type"], "service_area": r.get("service_area", ""), "social_urls": "; ".join(enriched["social_urls"]), "contact_pages": "; ".join(enriched["contact_pages"]),
+                       "contact_evidence_json": json.dumps(enriched["contact_evidence"], ensure_ascii=False), "enrichment_date": enriched["research_status"].get("enrichment_checked_at"),
+                       "website_checked_at": enriched["research_status"].get("website_checked_at"), "website_check_source": enriched["research_status"].get("website_check_source"), "contact_disagreements": "; ".join(enriched["research_status"]["contact_disagreements"])}
                 writer.writerow({k: "'" + v if isinstance(v, str) and v.lstrip().startswith(("=", "+", "-", "@")) else v for k, v in row.items()})
         return ("\ufeff" + buffer.getvalue()).encode("utf-8")
 
@@ -238,8 +263,8 @@ class Workspace:
             raise ValueError("Force must be true or false")
         force = payload.get("force", False)
         with self.lock:
-            if self.audit_job["status"] == "running":
-                raise ValueError("A website audit is already running")
+            if self.audit_job["status"] == "running" or self.research_job["status"] == "running":
+                raise ValueError("A website/research batch is already running")
             targets, skipped = [], 0
             for identity in dict.fromkeys(ids):
                 if identity not in self.by_id:
@@ -387,18 +412,20 @@ class Handler(BaseHTTPRequestHandler):
             self.respond(200, self.server.workspace.job_status())
         elif path == "/api/audit-job":
             self.respond(200, self.server.workspace.audit_status())
+        elif path == "/api/research":
+            self.respond(200, self.server.workspace.research_status())
         elif path == "/api/audit-report":
             identity = parse_qs(urlsplit(self.path).query).get("id", [""])[0]
             try:
                 self.respond(200, self.server.workspace.audit_report(identity))
             except KeyError:
                 self.respond(404, {"error": "Business not found"})
-        elif path in {"/", "/styles.css", "/ui.js", "/audit-ui.js"}:
-            filename = {"/": "index.html", "/styles.css": "styles.css", "/ui.js": "ui.js", "/audit-ui.js": "audit-ui.js"}[path]
+        elif path in {"/", "/styles.css", "/ui.js", "/audit-ui.js", "/research-ui.js"}:
+            filename = {"/": "index.html", "/styles.css": "styles.css", "/ui.js": "ui.js", "/audit-ui.js": "audit-ui.js", "/research-ui.js": "research-ui.js"}[path]
             content = (ROOT / "ui" / filename).read_text(encoding="utf-8")
             if path == "/":
                 content = content.replace("__APP_TOKEN__", self.server.token)
-            mime = {"/": "text/html", "/styles.css": "text/css", "/ui.js": "text/javascript", "/audit-ui.js": "text/javascript"}[path]
+            mime = {"/": "text/html", "/styles.css": "text/css", "/ui.js": "text/javascript", "/audit-ui.js": "text/javascript", "/research-ui.js": "text/javascript"}[path]
             self.respond(200, content.encode("utf-8"), mime + "; charset=utf-8")
         else:
             self.respond(404, {"error": "Not found"})
@@ -424,6 +451,18 @@ class Handler(BaseHTTPRequestHandler):
                 self.respond(202, self.server.workspace.start_audits(payload))
             elif path == "/api/audit-cancel":
                 self.respond(200, self.server.workspace.cancel_audits())
+            elif path == "/api/research":
+                self.respond(202, self.server.workspace.start_research(payload))
+            elif path == "/api/research-cancel":
+                self.respond(200, self.server.workspace.cancel_research())
+            elif path == "/api/research-settings":
+                self.respond(200, self.server.workspace.configure_research(payload))
+            elif path == "/api/discovery-add":
+                self.respond(200, self.server.workspace.add_candidate(payload))
+            elif path == "/api/discovery-import":
+                self.respond(200, self.server.workspace.import_candidates(payload))
+            elif path == "/api/discovery-review":
+                self.respond(200, self.server.workspace.review_candidate(payload))
             elif path == "/api/export":
                 content = self.server.workspace.export_csv(payload.get("ids"))
                 self.respond(200, content, "text/csv; charset=utf-8", "vicall-businesses.csv")
@@ -474,6 +513,7 @@ def main():
         return 1
     url = f"http://127.0.0.1:{server.server_port}"
     print(f"Vicall is ready at {url}\nKeep this process running. Press Ctrl+C to stop.", flush=True)
+    server.workspace.start_automation()
     if not args.no_browser:
         threading.Timer(0.6, lambda: webbrowser.open(url)).start()
     try:

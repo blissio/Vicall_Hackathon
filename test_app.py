@@ -49,6 +49,52 @@ class WorkspaceTests(unittest.TestCase):
             self.workspace.update({"id": "missing", "notes": "test"})
         self.assertFalse(self.workspace.workflow_file.exists())
 
+    def test_operation_status_requires_evidence_and_is_not_research_stage(self):
+        with self.assertRaises(ValueError):
+            self.workspace.update({"id": "osm:node:1", "business_status": "permanently_closed"})
+        result = self.workspace.update({"id": "osm:node:1", "business_status": "operating", "business_evidence": "Business-confirmed opening hours, 2026-10-06"})
+        self.assertEqual(result["stage"], "New")
+        self.assertEqual(self.workspace.data()["businesses"][0]["research_status"]["business"], "operating")
+
+    def test_home_business_inbox_promotion_survives_refresh_without_home_address(self):
+        lead = self.workspace.add_candidate({"name": "Test Home Baker", "source_url": "https://facebook.com/marketplace/item/123", "location_type": "home_based", "service_area": "Pittsburgh", "email": "business@example.com", "address": "Private address"})["candidate"]
+        self.assertNotIn("Private address", json.dumps(lead))
+        promoted = self.workspace.review_candidate({"id": lead["id"], "action": "add"})
+        business_id = promoted["added_id"]
+        self.workspace.update({"id": business_id, "notes": "Keep my business research"})
+        restarted = Workspace(self.directory)
+        business = next(r for r in restarted.data()["businesses"] if r["_id"] == business_id)
+        self.assertIsNone(business["location"])
+        self.assertEqual(business["research_status"]["location_type"], "home_based")
+        self.assertEqual(business["research_status"]["business"], "unknown")
+        self.assertEqual(business["workflow"]["notes"], "Keep my business research")
+
+    def test_enrichment_sources_survive_without_overwriting_osm_and_csv_includes_evidence(self):
+        self.workspace.research["enrichments"]["osm:node:1"] = {"checked_at": "2026-10-06T00:00:00+00:00", "contacts": [{"kind": "email", "value": "new@example.com", "source_url": "https://example.com/contact", "observed_at": "2026-10-06T00:00:00+00:00", "method": "Public email link", "verification": "observed_not_verified"}]}
+        row = self.workspace.data()["businesses"][0]
+        self.assertEqual(set(row["emails"]), {"info@example.com", "new@example.com"})
+        new = next(c for c in row["contact_evidence"] if c["value"] == "new@example.com")
+        self.assertEqual(new["source_url"], "https://example.com/contact")
+        self.assertEqual(self.workspace.by_id["osm:node:1"]["emails"], ["info@example.com"])
+        self.assertIn("https://example.com/contact", self.workspace.export_csv(["osm:node:1"]).decode("utf-8-sig"))
+
+    def test_csv_import_reports_errors_and_repeated_leads_are_not_duplicated(self):
+        data = "name,source_url,location_type\nBaker One,https://example.com/,home_based\nBroken,,home_based\n"
+        first = self.workspace.import_candidates({"csv": data})
+        second = self.workspace.import_candidates({"csv": data})
+        self.assertEqual(first["added"], 1)
+        self.assertEqual(first["errors"][0]["row"], 3)
+        self.assertEqual(second["existing"], 1)
+
+    def test_research_source_refresh_preserves_review_and_incomplete_pages_are_explicit(self):
+        candidate = self.workspace.add_candidate({"name": "Test Lead", "source_url": "https://example.com/"})["candidate"]
+        self.workspace.review_candidate({"id": candidate["id"], "action": "dismiss"})
+        self.workspace.research_job = {"status": "running", "completed": 0, "total": 1, "results": [], "errors": []}
+        with patch("research_workspace.fetch_directory", return_value=([candidate], {"source": "city_businesses"})):
+            self.workspace._run_research([], ["city_businesses"])
+        self.assertEqual(self.workspace.research["candidates"][candidate["id"]]["review_status"], "dismissed")
+        self.assertEqual(Workspace(self.directory).research_job["status"], "complete")
+
     def test_neighborhoods_enrich_old_snapshots_and_export_with_research(self):
         dataset = self.directory / "processed/businesses.jsonl"
         rows = [json.loads(line) for line in dataset.read_text(encoding="utf-8").splitlines()]

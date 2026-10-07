@@ -2,6 +2,12 @@
 
 ## Added in this refinement
 
+- Credential-free discovery from Pittsburgh's public business/contractor licensing records, with an optional county business directory, a review inbox, repeat-import deduplication, and source coverage limits.
+- Automated contact research across up to four website pages, with public phone/email/social/contact-page observations and field-level source URLs/dates. Original OSM contacts remain intact; differences prompt review.
+- Separate operating, website reachability, website identity, contact availability, and location-type statuses; evidence-backed researcher reviews.
+- Home/service-area business records without map pins or residential addresses, public-listing and CSV submissions, and preserved review state across updates.
+- Persistent settings and task progress for bounded background research while Python is open; interrupted jobs are reported explicitly. Complete queue resumption remains a future improvement.
+
 - A Website lab for live checks of listed or researcher-entered business URLs.
 - HTTP reachability, status codes, safe redirect handling, TLS verification, fetch timing, robots rules, and optional sitemap probing.
 - Evidence for page titles, descriptions, H1 headings, mobile viewport, indexing directives, canonical links, image alt attributes, internal links, and JSON-LD presence/syntax.
@@ -17,13 +23,13 @@
 | Priority | Improvement | Why it matters | Practical next step |
 | --- | --- | --- | --- |
 | 1 | Browser-rendered website audits | Static HTML can miss JavaScript content, broken visual layouts and poor mobile usability. | Add an optional browser worker with screenshots and Lighthouse; keep the lightweight basic audit available. |
-| 1 | Confirm website/business identity | An OSM link, redirect or manual URL can point to a chain, former owner or unrelated site. | Match name, address and contact evidence; add a researcher-confirmed identity flag and reasons. |
+| 1 | Stronger website/business identity matching | Researcher confirmation and name/contact signals now exist, but a chain or unrelated site can still provide misleading contacts. | Validate branch-level matches and conflicting evidence against a human-reviewed sample; retain explicit unknowns. |
 | 1 | Client-defined prospect rubric | Technical SEO problems alone do not establish a good customer or budget. | Confirm target categories, service area, company size, independence and useful outreach fields with Vicall. |
 | 1 | Validate the audit rubric | Present/absent HTML signals are useful but do not measure ranking performance or content quality. | Review 30–50 audits with a human, measure false positives and compare against rendered checks. |
-| 2 | Small multi-page crawl | Homepage-only checks miss broken service/contact pages and duplicate titles. | Sample up to five permitted same-site URLs, report broken links and metadata duplication, and cap crawl depth. |
+| 2 | Multi-page SEO analysis | Contact research now samples up to four pages, but the technical SEO score still applies to one requested URL. | Add page-level metadata comparisons and a bounded internal-link check. |
 | 2 | Verified contacts and decision-makers | Existing contacts are business listings, not verified owners or decision-makers. | Record public business contact source, role, date and confidence; keep uncertain matches explicit. |
-| 2 | Find missing websites | A blank OSM field is a coverage gap. | Add permitted discovery sources, then validate business identity before saving a discovered URL. |
-| 2 | Persistent audit queues and history | Jobs currently run in memory; stopping Python interrupts the remaining queue. | Persist queued work, resume safely, retain complete historical snapshots, and compare changes. |
+| 2 | Find missing websites | Public-directory discovery now provides more leads and occasional website URLs; coverage is incomplete. | Add more licensed sources or an authorized search integration, then validate business identity before accepting a website match. |
+| 2 | Resume queues and compare historical research | Research progress/settings now persist; interrupted jobs are marked and need a new run. Website-audit jobs still run in memory. | Persist/resume individual tasks safely and retain full contact/SEO change history. |
 | 2 | Stronger data publishing | Collection currently publishes completed files individually with dated backups. | Commit one versioned dataset directory and switch an active pointer, so even disk errors cannot produce mixed snapshots. |
 | 3 | Evidence-grounded AI research | The current system provides rules and manual research, without an AI assistant. | Retrieve verified records and findings, generate recommendations with citations, and evaluate top-10 prospect precision. |
 | 3 | Richer search visibility data | The app does not know traffic, backlinks, keyword position, or real-user performance. | Use authorized Search Console/PageSpeed integrations for clients who grant access; show data provenance and cost. |
