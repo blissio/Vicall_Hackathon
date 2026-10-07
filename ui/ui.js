@@ -1,0 +1,149 @@
+'use strict';
+const $ = (selector) => document.querySelector(selector);
+const $$ = (selector) => [...document.querySelectorAll(selector)];
+const token = $('meta[name="app-token"]').content;
+const state = {rows: [], report: {}, summary: {}, view: 'directory', filtered: [], page: 1, pageSize: 25, sort: 'name', direction: 1, selected: new Set(), detail: null, jobRunning: false, lastJob: null, dirty: false, pending: new Set()};
+const titles = {directory: ['Business directory', 'Find your next opportunity in Pittsburgh.', 'Directory'], shortlist: ['Your shortlist', 'A focused list of businesses worth a closer look.', 'Shortlist'], pipeline: ['Research pipeline', 'Turn local discoveries into informed decisions.', 'Research pipeline'], data: ['Data center', 'A clear view of your sources, coverage, and collection.', 'Data center']};
+titles.audits = ['Website lab', 'Understand reachability. Find actionable website improvements.', 'Website lab'];
+const stages = ['New', 'Researching', 'Qualified', 'Not a fit'];
+const esc = (value) => String(value ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+const icon = (name) => `<svg class="icon" aria-hidden="true"><use href="#i-${name}"/></svg>`;
+const count = (n) => Number(n || 0).toLocaleString();
+const categoryName = (r) => {const [kind,...parts] = (r.category || '').split(':'); const value=parts.join(':'); if(!value) return 'Unspecified'; if(['yes','*'].includes(value)) return ({shop:'Retail',office:'Office',craft:'Trade',amenity:'Business',tourism:'Lodging'}[kind] || 'Business') + ' (unspecified)'; return value.replaceAll('_', ' ').replaceAll(';', ' / ').replace(/\b\w/g, c => c.toUpperCase()).replace(/\bHvac\b/g,'HVAC').replace(/\bIt\b/g,'IT');};
+const address = (r) => {const a = r.address || {}; return [a.house_number, a.street, a.unit && `Unit ${a.unit}`].filter(Boolean).join(' ') || 'Address not listed';};
+const initials = (name) => String(name).split(/\s+/).filter(Boolean).slice(0,2).map(s => s[0]).join('').toUpperCase();
+const date = (value) => {if (!value) return 'Not available'; const d = new Date(value); return Number.isNaN(d.getTime()) ? 'Not available' : d.toLocaleString(undefined, {year:'numeric',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});};
+function safeURL(value) {try {const u = new URL(value); return ['https:', 'http:'].includes(u.protocol) ? u.href : null;} catch {return null;}}
+function externalLink(url, label) {const safe = safeURL(url); return safe ? `<a href="${esc(safe)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>` : esc(label);}
+let toastTimer;
+function toast(message, error = false) {$('#toast').textContent = message; $('#toast').classList.toggle('error-toast', error); $('#toast').hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => {$('#toast').hidden = true;}, error ? 7000 : 3500);}
+async function api(path, payload) {const response = await fetch(path, {method: payload === undefined ? 'GET' : 'POST', headers: {'X-Vicall-Token': token, ...(payload === undefined ? {} : {'Content-Type': 'application/json'})}, ...(payload === undefined ? {} : {body: JSON.stringify(payload)})}); if (!response.ok) {let message; try {message = (await response.json()).error;} catch {message = 'The local app is unavailable. Check that Python is still running.';} throw new Error(message || 'Request failed');} return response;}
+async function loadData() {const previous = $('#category').value, previousNeighborhood = $('#neighborhood').value; const data = await (await api('/api/data')).json(); state.rows = data.businesses; state.report = data.report || {}; state.summary = data.summary; state.auditVersion = data.audit_version; state.neighborhoodSource = data.neighborhood_source; $('#load-error').textContent = data.error || ''; $('#load-error').hidden = !data.error; const categories = [...new Set(state.rows.map(r => r.category))].sort(); $('#category').innerHTML = '<option value="">All categories</option>' + categories.map(c => `<option value="${esc(c)}">${esc(categoryName({category:c}))}</option>`).join(''); if (categories.includes(previous)) $('#category').value = previous; const neighborhoodCounts = new Map(); for (const row of state.rows) {const name = row.neighborhood || '__unknown__'; neighborhoodCounts.set(name,(neighborhoodCounts.get(name) || 0)+1);} const neighborhoods = [...neighborhoodCounts.keys()].filter(n=>n!=='__unknown__').sort((a,b)=>a.localeCompare(b)); $('#neighborhood').innerHTML = '<option value="">All neighborhoods</option>' + neighborhoods.map(n=>`<option value="${esc(n)}">${esc(n)} (${count(neighborhoodCounts.get(n))})</option>`).join('') + (neighborhoodCounts.has('__unknown__') ? `<option value="__unknown__">Unknown neighborhood (${count(neighborhoodCounts.get('__unknown__'))})</option>` : ''); if(neighborhoodCounts.has(previousNeighborhood)) $('#neighborhood').value = previousNeighborhood; const ids = new Set(state.rows.map(r => r._id)); state.selected = new Set([...state.selected].filter(id => ids.has(id))); if (state.detail && !ids.has(state.detail)) {closeDetail(true); toast('The open business is absent from the new snapshot. Previous notes are retained.');} renderStats(); filterRows(); renderDataCenter(); window.vicallAudit?.render();}
+function renderStats() {const s = state.summary; const total = s.total || 0; $('#nav-total').textContent = count(total); $('#nav-saved').textContent = count(s.shortlisted); const cards = [['Business candidates', total, 'grid', 'Within Pittsburgh city limits'], ['Websites listed', s.websites, 'link', `<strong>${total ? Math.round(s.websites / total * 100) : 0}%</strong> of the directory · unverified`], ['Email contacts', s.emails, 'data', 'Publicly listed in OpenStreetMap'], ['Your shortlist', s.shortlisted, 'star', 'Saved for your next research step']]; $('#stats').innerHTML = cards.map(([label, value, image, foot]) => `<article class="stat-card"><div class="stat-label">${label}${icon(image)}</div><div class="stat-value">${count(value)}</div><div class="stat-foot">${foot}</div></article>`).join(''); $('#snapshot-footer').textContent = state.report.collected_at ? `Snapshot ${date(state.report.collected_at)}` : 'No snapshot yet · Pittsburgh city limits';}
+function summarizeWorkflow() {state.summary.shortlisted = state.rows.filter(r => r.workflow.shortlisted).length; renderStats();}
+function filterRows() {
+  const q = $('#search').value.trim().toLowerCase();
+  const category = $('#category').value, web = $('#website').value;
+  const contact = $('#contact').value, stage = $('#stage-filter').value;
+  const auditFilter = $('#audit-filter').value, neighborhood = $('#neighborhood').value;
+  const duplicates = $('#duplicates').checked, incomplete = $('#address-missing').checked;
+  state.filtered = state.rows.filter(r => {
+    if (state.view === 'shortlist' && !r.workflow.shortlisted) return false;
+    if (category && r.category !== category) return false;
+    if (neighborhood && (r.neighborhood || '__unknown__') !== neighborhood) return false;
+    if (web === 'listed' && !r.websites?.length) return false;
+    if (web === 'missing' && r.website_status !== 'not_listed_in_osm') return false;
+    if (web === 'invalid' && r.website_status !== 'invalid_osm_value') return false;
+    if (contact === 'email' && !r.emails?.length) return false;
+    if (contact === 'phone' && !r.phones?.length) return false;
+    if (contact === 'either' && !r.emails?.length && !r.phones?.length) return false;
+    if (contact === 'none' && (r.emails?.length || r.phones?.length)) return false;
+    if (stage && r.workflow.stage !== stage) return false;
+    if (duplicates && !r.duplicate_candidates?.length) return false;
+    if (incomplete && r.address?.house_number && r.address?.street) return false;
+    if (auditFilter && window.vicallAudit && !window.vicallAudit.matches(r, auditFilter)) return false;
+    if (q && ![r.name, r.category, ...Object.values(r.address || {}), ...(r.websites || []),
+      ...(r.phones || []), ...(r.emails || []), r.brand, r.operator, r.workflow.notes,
+      r.audit?.requested_url, r.neighborhood].join(' ').toLowerCase().includes(q)) return false;
+    return true;
+  });
+  sortRows();
+  const active = [category,web,contact,stage,auditFilter,duplicates,incomplete].filter(Boolean).length;
+  $('#active-filters').textContent = active ? `(${active})` : '';
+  renderTable(); renderPipeline(); window.vicallAudit?.render();
+}
+function sortRows() {
+  state.filtered.sort((a,b) => {
+    if (state.sort === 'neighborhood') {
+      if (!a.neighborhood && !b.neighborhood) return a.name.localeCompare(b.name);
+      if (!a.neighborhood) return 1;
+      if (!b.neighborhood) return -1;
+      return a.neighborhood.localeCompare(b.neighborhood)*state.direction || a.name.localeCompare(b.name);
+    }
+    if (state.sort === 'seo') {
+      const av = a.audit?.score, bv = b.audit?.score;
+      if (av == null && bv == null) return a.name.localeCompare(b.name);
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      return (av-bv)*state.direction;
+    }
+    const av = state.sort === 'stage' ? a.workflow.stage : state.sort === 'category' ? categoryName(a) : a.name;
+    const bv = state.sort === 'stage' ? b.workflow.stage : state.sort === 'category' ? categoryName(b) : b.name;
+    return av.localeCompare(bv) * state.direction;
+  });
+}
+function pageRows() {return state.filtered.slice((state.page-1)*state.pageSize, state.page*state.pageSize);}
+function stageClass(stage) {return 'stage-' + stage.replaceAll(' ', '-');}
+function renderTable() {
+  const total = state.filtered.length;
+  const pages = Math.max(1,Math.ceil(total/state.pageSize));
+  state.page = Math.max(1,Math.min(state.page,pages));
+  $('#list-title').firstChild.textContent = state.view === 'shortlist' ? 'Saved businesses ' : 'All businesses ';
+  $('#list-subtitle').textContent = state.view === 'shortlist' ? 'A deliberate shortlist, with your research attached.' : 'Mapped businesses, ready for research.';
+  $('#results-badge').textContent = count(total);
+  $('#business-rows').innerHTML = pageRows().map((r,i) => {
+    const listed = !!r.websites?.length, invalid = r.website_status === 'invalid_osm_value';
+    const audited = r.audit;
+    const reachable = audited?.reachability === 'reachable';
+    const badConnection = ['unreachable','http_error'].includes(audited?.reachability);
+    const status = audited ? (reachable ? 'Reachable' : badConnection ? 'Check failed' : 'Inconclusive') : listed ? 'Listed · unchecked' : invalid ? 'Needs review' : 'Not listed';
+    const websiteClass = reachable ? '' : audited ? (badConnection ? 'invalid' : 'missing') : listed ? '' : invalid ? 'invalid' : 'missing';
+    return `<tr data-id="${esc(r._id)}">
+      <td><input type="checkbox" class="row-select" aria-label="Select ${esc(r.name)}" ${state.selected.has(r._id) ? 'checked' : ''}></td>
+      <td><div class="business-cell"><span class="monogram tone${i%4}">${esc(initials(r.name))}</span><div class="business-description"><button class="business-name" data-open="${esc(r._id)}">${esc(r.name)}</button><div class="address-line" title="${esc(address(r))}">${esc(address(r))}${r.duplicate_candidates?.length ? ' · Possible duplicate' : ''}</div></div></div></td>
+      <td class="neighborhood-text" title="${esc(r.neighborhood_method === 'approximate_area_center' ? 'Matched from approximate area center' : r.neighborhood_method === 'boundary_ambiguous' ? 'Location lies on a shared boundary: ' + r.neighborhood_candidates.join(', ') : r.neighborhood ? 'Matched to city neighborhood boundaries' : 'No reliable boundary match')}">${esc(r.neighborhood || 'Unknown')}</td>
+      <td class="category-text">${esc(categoryName(r))}</td>
+      <td><span class="website-status ${websiteClass}" title="${esc(audited?.message || 'OSM website listing, not independently verified')}"><span></span>${status}</span></td>
+      <td>${window.vicallAudit?.cell(r) || '<span class="muted-cell">Not analyzed</span>'}</td>
+      <td><div class="contact-pills">${r.phones?.length ? '<span class="contact-pill">Phone</span>' : ''}${r.emails?.length ? '<span class="contact-pill">Email</span>' : ''}${!r.phones?.length && !r.emails?.length ? '<span class="muted-cell">—</span>' : ''}</div></td>
+      <td><span class="stage-pill ${stageClass(r.workflow.stage)}">${esc(r.workflow.stage)}</span></td>
+      <td><button class="star-button ${r.workflow.shortlisted ? 'saved' : ''}" data-star="${esc(r._id)}" aria-label="${r.workflow.shortlisted ? 'Remove' : 'Add'} ${esc(r.name)} ${r.workflow.shortlisted ? 'from' : 'to'} shortlist" aria-pressed="${r.workflow.shortlisted}">${icon('star')}</button></td>
+    </tr>`;
+  }).join('');
+  $('#empty-state').hidden = total > 0;
+  $('#empty-title').textContent = !state.rows.length ? 'Your directory starts here' : state.view === 'shortlist' && !state.summary.shortlisted ? 'Build your first shortlist' : 'No matching businesses';
+  $('#empty-text').textContent = !state.rows.length ? 'Open Data center to collect business candidates from OpenStreetMap.' : state.view === 'shortlist' && !state.summary.shortlisted ? 'Save businesses using the star beside each listing.' : 'Try a broader search or adjust your filters.';
+  $('#empty-action').textContent = !state.rows.length ? 'Open Data center' : state.view === 'shortlist' && !state.summary.shortlisted ? 'Explore directory' : 'Clear filters';
+  $('#page-summary').textContent = total ? `${count((state.page-1)*state.pageSize+1)}–${count(Math.min(state.page*state.pageSize,total))} of ${count(total)} businesses` : '0 businesses';
+  $('#page-number').textContent = `${state.page} / ${pages}`;
+  $('#previous').disabled = state.page <= 1; $('#next').disabled = state.page >= pages;
+  updateSelection(); $('#export-button').disabled = !total;
+  $$('[data-sort]').forEach(b => {
+    b.querySelector('span').textContent = b.dataset.sort === state.sort ? (state.direction === 1 ? '↑' : '↓') : '↕';
+    b.closest('th').setAttribute('aria-sort', b.dataset.sort === state.sort ? (state.direction === 1 ? 'ascending' : 'descending') : 'none');
+  });
+}
+function updateSelection() {$('#selection-bar').hidden = !state.selected.size; $('#selected-count').textContent = `${count(state.selected.size)} selected`; const page = pageRows(); const chosen = page.filter(r => state.selected.has(r._id)).length; $('#select-page').checked = !!page.length && chosen === page.length; $('#select-page').indeterminate = chosen > 0 && chosen < page.length;}
+function renderPipeline() {$('#pipeline-board').innerHTML = stages.map(stage => {const rows = state.rows.filter(r => r.workflow.stage === stage).sort((a,b) => (b.workflow.updated_at || '').localeCompare(a.workflow.updated_at || '')); return `<section class="pipeline-lane"><div class="lane-heading">${stage}<span>${count(rows.length)}</span></div>${rows.slice(0,12).map(r => `<button class="pipeline-card" data-open="${esc(r._id)}"><h3>${esc(r.name)}</h3><p>${esc(categoryName(r))}</p><p>${esc(address(r))}</p><div class="pipeline-footer">${icon(r.workflow.shortlisted ? 'star' : 'pin')}${r.workflow.shortlisted ? 'Shortlisted' : 'Pittsburgh candidate'}${r.workflow.notes ? ' · Notes added' : ''}</div></button>`).join('') || '<p class="lane-empty">No businesses at this stage yet.</p>'}${rows.length > 12 ? `<button class="text-button lane-all" data-stage="${esc(stage)}">View all ${count(rows.length)} businesses →</button>` : ''}</section>`;}).join('');}
+function bar(label,value,total) {const width = total ? Math.round(value/total*100) : 0; return `<div class="quality-row"><div class="bar-label"><span>${esc(label)}</span><span>${count(value)} · ${width}%</span></div><div class="bar-track"><div class="bar-fill" data-width="${width}"></div></div></div>`;}
+function renderDataCenter() {const s=state.summary,r=state.report; $('#snapshot-details').innerHTML = [['Scope','Pittsburgh city limits'],['Source','OpenStreetMap / Overpass'],['Collected',date(r.collected_at)],['Named candidates',count(s.total)],['Raw elements',r.raw_elements === undefined ? 'Not available' : count(r.raw_elements)]].map(([a,b])=>`<div><dt>${a}</dt><dd>${esc(b)}</dd></div>`).join(''); $('#quality-bars').innerHTML = bar('Website listed',s.websites,s.total)+bar('Phone listed',s.phones,s.total)+bar('Email listed',s.emails,s.total)+bar('Complete street address',r.with_complete_street_address || 0,s.total); $('#quality-callout').textContent = `${count(s.duplicates)} records have possible duplicate listings. Review them before treating the directory count as unique businesses.`; const entries=Object.entries(r.categories || {}).sort((a,b)=>b[1]-a[1]).slice(0,10); $('#category-bars').innerHTML=entries.map(([label,value])=>bar(categoryName({category:label}),value,s.total)).join('') || '<p class="small-muted">Category coverage appears after collection.</p>'; $$('.bar-fill').forEach(el=>el.style.setProperty('--bar-width', `${el.dataset.width}%`));}
+function resetFilters() {$('#search').value=''; ['category','neighborhood','website','contact','stage-filter','audit-filter'].forEach(id=>$('#'+id).value=''); $('#duplicates').checked=false; $('#address-missing').checked=false; state.page=1; filterRows();}
+function switchView(view) {state.view=view; const [title,description,crumb]=titles[view]; $('#page-title').textContent=title; $('#page-description').textContent=description; $('#crumb').textContent=crumb; $$('.nav-item').forEach(b=>{b.classList.toggle('active',b.dataset.view===view); if(b.dataset.view===view) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current');}); $('#directory-view').hidden=!['directory','shortlist'].includes(view); $('#pipeline-view').hidden=view!=='pipeline'; $('#data-view').hidden=view!=='data'; $('#audits-view').hidden=view!=='audits'; $('#stats').hidden=view==='audits'; $('#export-button').hidden=!['directory','shortlist'].includes(view); $('#collect-top').hidden=['data','audits'].includes(view); state.page=1; filterRows(); window.scrollTo({top:0,behavior:'instant'});}
+async function patchWorkflow(id,patch) {const result=await (await api('/api/workflow',{id,...patch})).json(); const row=state.rows.find(r=>r._id===id); if(row) row.workflow=result; summarizeWorkflow(); filterRows(); return result;}
+async function toggleStar(id) {if(state.pending.has(id)) return; const row=state.rows.find(r=>r._id===id); if(!row) return; state.pending.add(id); try {await patchWorkflow(id,{shortlisted:!row.workflow.shortlisted}); if(state.detail===id) renderDetailStar(row); toast(row.workflow.shortlisted ? 'Added to your shortlist' : 'Removed from shortlist');} catch(e) {toast(e.message,true);} finally {state.pending.delete(id);}}
+let focusBeforeDrawer;
+function openDetail(id) {if(state.dirty && !confirm('Discard unsaved research changes?')) return; const row=state.rows.find(r=>r._id===id); if(!row) return; if($('#detail-drawer').hidden) focusBeforeDrawer=document.activeElement; state.detail=id; state.dirty=false; $('#detail-drawer').hidden=false; $('#drawer-overlay').hidden=false; document.body.style.overflow='hidden'; $('#detail-monogram').textContent=initials(row.name); $('#detail-category').textContent=categoryName(row); $('#detail-name').textContent=row.name; $('#detail-address').textContent=[address(row),row.address?.city,row.address?.postcode].filter(Boolean).join(' · '); renderDetailStar(row); const listed=row.websites?.length; $('#detail-contacts').innerHTML=[['Website',listed ? row.websites.map(url=>externalLink(url,new URL(safeURL(url) || 'https://invalid.example').hostname)).join('') : (row.website_status==='invalid_osm_value'?'OSM value needs review':'Not listed in OSM · unknown')],['Phone',row.phones?.length ? row.phones.map(esc).join('<br>') : 'Not listed'],['Email',row.emails?.length ? row.emails.map(esc).join('<br>') : 'Not listed'],['Hours',row.opening_hours ? esc(row.opening_hours) : 'Not listed'],['Brand / operator',[row.brand,row.operator].filter(Boolean).map(esc).join(' / ') || 'Not listed']].map(([label,value])=>`<div class="detail-contact"><span>${label}</span><div>${value}</div></div>`).join(''); $('#detail-stage').value=row.workflow.stage; $('#detail-notes').value=row.workflow.notes; $('#notes-state').textContent=row.workflow.updated_at ? `Saved ${date(row.workflow.updated_at)}` : 'Notes are saved locally.'; const flags=(row.quality_flags || []).map(f=>f.replaceAll('_',' ')); $('#detail-quality').innerHTML='<h3>Data review</h3>'+(flags.length?`<div class="detail-flags">${flags.map(f=>esc(f[0].toUpperCase()+f.slice(1))).join('<br>')}</div>`:'<p class="small-muted">No collection quality flags. Details still need verification.</p>')+(row.duplicate_candidates?.length?'<p class="small-muted">Possible duplicate listings</p>'+row.duplicate_candidates.map(id=>{const other=state.rows.find(r=>r._id===id); return `<button class="duplicate-link" data-open="${esc(id)}">${esc(other?.name || id)} · ${esc(id)}</button>`;}).join(''):''); $('#detail-source').innerHTML=[['Neighborhood',row.neighborhood || 'Unknown'],['Neighborhood matching',row.neighborhood_method === 'mapped_point' ? 'Mapped point / city boundary' : row.neighborhood_method === 'approximate_area_center' ? 'Approximate area center / city boundary' : row.neighborhood_method === 'boundary_ambiguous' ? 'Shared boundary; verify location' : 'No reliable boundary match'],['Source ID',row._id],['Collected',date(row.source?.collected_at)],['OSM last edited',date(row.source?.osm_last_modified)],['Coordinates',row.location?.coordinates ? `${row.location.coordinates[1].toFixed(5)}, ${row.location.coordinates[0].toFixed(5)}` : 'Not listed'],['Coordinate method',row.coordinate_method==='node'?'Mapped point':'Approximate area center']].map(([label,value])=>`<div><dt>${label}</dt><dd>${esc(value)}</dd></div>`).join(''); let links=externalLink(row.source?.url,'View OSM listing ↗') + externalLink(state.neighborhoodSource,'City neighborhood boundaries ↗'); if(row.location?.coordinates) {const [lon,lat]=row.location.coordinates; links += externalLink(`https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=18/${lat}/${lon}`,'View on map ↗');} $('#detail-links').innerHTML=links; $('.app-shell').inert=true; window.vicallAudit?.open(id); $('#close-detail').focus();}
+function renderDetailStar(row) {$('#detail-shortlist').innerHTML=icon('star')+(row.workflow.shortlisted?'Remove from shortlist':'Add to shortlist'); $('#detail-shortlist').setAttribute('aria-pressed',row.workflow.shortlisted);}
+function closeDetail(force=false) {if(!force && state.dirty && !confirm('Discard unsaved research changes?')) return; state.detail=null; state.dirty=false; $('#detail-drawer').hidden=true; $('#drawer-overlay').hidden=true; document.body.style.overflow=''; $('.app-shell').inert=false; if(focusBeforeDrawer?.isConnected) focusBeforeDrawer.focus();}
+async function saveResearch() {if(!state.detail) return; const id=state.detail,stage=$('#detail-stage').value,notes=$('#detail-notes').value; $('#save-notes').disabled=true; try {const result=await patchWorkflow(id,{stage,notes}); if(state.detail===id) {state.dirty=$('#detail-stage').value!==stage || $('#detail-notes').value!==notes; $('#notes-state').textContent=state.dirty?'Unsaved changes':`Saved ${date(result.updated_at)}`;} toast('Research saved');} catch(e) {toast(e.message,true);} finally {$('#save-notes').disabled=false;}}
+async function exportRows(ids) {if(!ids.length) return toast('No businesses to export'); try {const response=await api('/api/export',{ids}); const blob=await response.blob(); const url=URL.createObjectURL(blob); const link=document.createElement('a'); link.href=url; link.download='vicall-businesses.csv'; document.body.appendChild(link); link.click(); link.remove(); setTimeout(()=>URL.revokeObjectURL(url),60000); toast(`Exported ${count(ids.length)} businesses with notes and source links`);} catch(e) {toast(e.message,true);}}
+async function collect(mode) {if(state.jobRunning) return; try {const job=await (await api('/api/collect',{mode})).json(); renderJob(job); toast(mode==='clean'?'Rebuilding your saved snapshot':'Collection started. You can keep browsing.');} catch(e) {toast(e.message,true);}}
+function renderJob(job) {state.jobRunning=job.status==='running'; $('#job-message').textContent=job.message; $('#job-dot').className='job-dot '+job.status; $('#job-log').textContent=job.log || (state.jobRunning?'Collector is running. The complete log will appear when it finishes.':'No collection run in this session.'); $('#collect-top').disabled=state.jobRunning; $('#collect-top span').textContent=state.jobRunning?'Collecting…':'Update data'; $$('.collection-action').forEach(b=>b.disabled=state.jobRunning || (b.dataset.mode==='clean'&&!state.rows.length));}
+let pollErrors=0;
+async function pollJob() {try {const job=await (await api('/api/job')).json(); const wasRunning=state.jobRunning; renderJob(job); pollErrors=0; if(wasRunning && job.status==='complete') {await loadData(); toast(job.message);} if(wasRunning && job.status==='failed') toast('Collection failed. See Data center for the error details.',true);} catch(e) {if(++pollErrors===3) toast('Connection lost. Keep the Python launcher running, then reload this page.',true);} finally {setTimeout(pollJob,state.jobRunning?2000:8000);}}
+document.addEventListener('click',e=>{const open=e.target.closest('[data-open]'); if(open) openDetail(open.dataset.open); const star=e.target.closest('[data-star]'); if(star) toggleStar(star.dataset.star); const lane=e.target.closest('[data-stage]'); if(lane) {resetFilters(); $('#stage-filter').value=lane.dataset.stage; $('#advanced-filters').hidden=false; $('#more-filters').setAttribute('aria-expanded','true'); switchView('directory');} });
+$$('.nav-item').forEach(b=>b.addEventListener('click',()=>switchView(b.dataset.view)));
+let searchTimer; $('#search').addEventListener('input',()=>{clearTimeout(searchTimer); searchTimer=setTimeout(()=>{state.page=1;filterRows();},120);});
+['category','neighborhood','website','contact','stage-filter','audit-filter','duplicates','address-missing'].forEach(id=>$('#'+id).addEventListener('change',()=>{state.page=1;filterRows();}));
+$('#more-filters').addEventListener('click',()=>{const el=$('#advanced-filters');el.hidden=!el.hidden;$('#more-filters').setAttribute('aria-expanded',!el.hidden);});
+$('#clear-filters').addEventListener('click',resetFilters); $('#empty-action').addEventListener('click',()=>{if(!state.rows.length) switchView('data');else if(state.view==='shortlist'&&!state.summary.shortlisted) {resetFilters();switchView('directory');}else resetFilters();});
+$$('[data-sort]').forEach(b=>b.addEventListener('click',()=>{state.direction=state.sort===b.dataset.sort ? -state.direction : 1;state.sort=b.dataset.sort;sortRows();renderTable();}));
+$('#page-size').addEventListener('change',()=>{state.pageSize=Number($('#page-size').value);state.page=1;renderTable();}); $('#previous').addEventListener('click',()=>{state.page--;renderTable();}); $('#next').addEventListener('click',()=>{state.page++;renderTable();});
+$('#business-rows').addEventListener('change',e=>{if(e.target.matches('.row-select')) {const id=e.target.closest('tr').dataset.id; if(e.target.checked)state.selected.add(id);else state.selected.delete(id);updateSelection();}}); $('#select-page').addEventListener('change',()=>{pageRows().forEach(r=>{if($('#select-page').checked)state.selected.add(r._id);else state.selected.delete(r._id);});renderTable();}); $('#clear-selection').addEventListener('click',()=>{state.selected.clear();renderTable();});
+$('#bulk-save').addEventListener('click',async()=>{const ids=[...state.selected];$('#bulk-save').disabled=true;let saved=0;try {for(const id of ids){await patchWorkflow(id,{shortlisted:true});saved++;}state.selected.clear();renderTable();toast(`Added ${count(saved)} businesses to shortlist`);}catch(e){toast(`${saved} saved. ${e.message}`,true);}finally{$('#bulk-save').disabled=false;}});
+$('#export-button').addEventListener('click',()=>exportRows(state.filtered.map(r=>r._id))); $('#export-selected').addEventListener('click',()=>exportRows([...state.selected]));
+$('#close-detail').addEventListener('click',()=>closeDetail()); $('#drawer-overlay').addEventListener('click',()=>closeDetail()); $('#detail-shortlist').addEventListener('click',()=>toggleStar(state.detail)); $('#save-notes').addEventListener('click',saveResearch); ['detail-stage','detail-notes'].forEach(id=>$('#'+id).addEventListener('input',()=>{state.dirty=true;$('#notes-state').textContent='Unsaved changes';}));
+$('#collect-top').addEventListener('click',()=>switchView('data')); $$('.collection-action').forEach(b=>b.addEventListener('click',()=>collect(b.dataset.mode)));
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#detail-drawer').hidden)closeDetail(); if(e.key==='/'&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)&&$('#detail-drawer').hidden){e.preventDefault();if(!['directory','shortlist'].includes(state.view))switchView('directory');$('#search').focus();} if((e.ctrlKey||e.metaKey)&&e.key==='s'&&state.detail){e.preventDefault();saveResearch();} if(e.key==='Tab'&&!$('#detail-drawer').hidden){const elements=$$('#detail-drawer button, #detail-drawer a, #detail-drawer select, #detail-drawer textarea, #detail-drawer input').filter(el=>!el.disabled);const first=elements[0],last=elements[elements.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}});
+window.addEventListener('beforeunload',e=>{if(state.dirty){e.preventDefault();e.returnValue='';}});
+(async()=>{try{await loadData();pollJob();}catch(e){$('#load-error').hidden=false;$('#load-error').textContent=e.message;toast(e.message,true);}})();

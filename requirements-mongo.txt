@@ -1,0 +1,2 @@
+# Optional: the OSM collector itself has no third-party dependencies.
+pymongo>=4.10,<5
