@@ -1,4 +1,6 @@
-# Vicall improvements and next steps
+# Historical Vicall refinement notes
+
+This document describes the earlier prototype. The current implementation includes SQLite persistence, an optional AI assistant, person/role research, matching, resumable tasks, and rendered checks. See [README.md](README.md) and [docs/implementation-status.md](docs/implementation-status.md) for current behavior and remaining work. Priorities below are historical.
 
 ## Added in this refinement
 

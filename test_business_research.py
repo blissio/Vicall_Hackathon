@@ -6,7 +6,7 @@ from business_research import ResearchCrawler, enrich_business, extract_contacts
 
 
 def page(text, url="https://example.com/", status=200, content_type="text/html"):
-    return {"text": text, "url": url, "status": status, "headers": {"content-type": content_type}, "truncated": False}
+    return {"text": text, "url": url, "status": status, "headers": {"content-type": content_type}, "truncated": False, "bytes_read": len(text.encode())}
 
 
 class Fetcher:

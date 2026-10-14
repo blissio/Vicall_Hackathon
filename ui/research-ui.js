@@ -3,7 +3,7 @@
   let research = {job:{status:'idle'}, candidates:[], settings:{}, sources:{}, providers:[]};
   let initialized = false, page = 1, lastProgress = '', timer;
   const businessLabels = {unknown:'Operating status unknown',operating:'Reported operating',temporarily_closed:'Reported temporarily closed',permanently_closed:'Reported permanently closed'};
-  const websiteLabels = {no_independent_url:'Independent website unknown',not_checked:'Website listed · not checked',reachable:'HTML reachable',unreachable:'Connection failed · recheck',http_error:'HTTP error · recheck',restricted:'Access restricted',unknown:'Website check inconclusive',non_html:'Responded · non-HTML'};
+  const websiteLabels = {no_independent_url:'Website unknown',not_checked:'Listed · not checked',reachable:'Website reachable',unreachable:'Connection failed',http_error:'HTTP error',restricted:'Access restricted',unknown:'Check inconclusive',non_html:'Responded · non-HTML'};
   const locationLabels = {mapped_location:'Mapped location',home_based:'Home-based',service_area:'Service-area business',storefront:'Storefront reported',online_only:'Online only',unknown:'Location unconfirmed'};
 
   function businessCell(row) {
@@ -12,7 +12,9 @@
   }
   function websiteCell(row) {
     const s=row.research_status || {};
-    return `<span>${esc(websiteLabels[s.website] || 'Website status unknown')}<small class="website-check-date">${s.website_checked_at?esc(date(s.website_checked_at)):'No independent check'}</small><small class="website-identity">${s.identity==='researcher_confirmed'?'Identity reviewed':'Identity unverified'}</small></span>`;
+    const checked=s.website_checked_at ? new Date(s.website_checked_at) : null;
+    const label=checked && !Number.isNaN(checked.getTime()) ? new Intl.DateTimeFormat(undefined,{year:'numeric',month:'short',day:'numeric'}).format(checked) : 'Not checked yet';
+    return `<span class="website-label">${esc(websiteLabels[s.website] || 'Status unknown')}</span><small class="website-check-date">${esc(label)}</small><small class="website-identity">${s.identity==='researcher_confirmed'?'Identity reviewed':'Identity unverified'}</small>`;
   }
   function contactCell(row) {
     const channels=[['Phone',row.phones],['Email',row.emails],['Social',row.social_urls],['Contact page',row.contact_pages]].filter(([,v])=>v?.length);

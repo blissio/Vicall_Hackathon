@@ -1,0 +1,77 @@
+{
+  "dataset": "fictional fixtures",
+  "cases": [
+    {
+      "name": "Office prospects with observed issues",
+      "expected_ids": [
+        "demo:accounting-issues"
+      ],
+      "actual_ids": [
+        "demo:accounting-issues"
+      ],
+      "precision": 1.0,
+      "recall": 1.0,
+      "exact_set_match": true,
+      "baseline_precision": 0.3333333333333333,
+      "retrieval_ms": 18.68,
+      "retrieved_context_characters": 2549,
+      "full_context_characters": 14897,
+      "external_page_requests": 0
+    },
+    {
+      "name": "District public role",
+      "expected_ids": [
+        "demo:district"
+      ],
+      "actual_ids": [
+        "demo:district"
+      ],
+      "precision": 1.0,
+      "recall": 1.0,
+      "exact_set_match": true,
+      "baseline_precision": 1.0,
+      "retrieval_ms": 10.37,
+      "retrieved_context_characters": 2397,
+      "full_context_characters": 14897,
+      "external_page_requests": 0
+    },
+    {
+      "name": "Legal provider",
+      "expected_ids": [
+        "demo:legal"
+      ],
+      "actual_ids": [
+        "demo:legal"
+      ],
+      "precision": 1.0,
+      "recall": 1.0,
+      "exact_set_match": true,
+      "baseline_precision": 1.0,
+      "retrieval_ms": 11.5,
+      "retrieved_context_characters": 1534,
+      "full_context_characters": 14897,
+      "external_page_requests": 0
+    },
+    {
+      "name": "Unrepresented category",
+      "expected_ids": [],
+      "actual_ids": [],
+      "precision": null,
+      "recall": null,
+      "exact_set_match": true,
+      "baseline_precision": null,
+      "retrieval_ms": 10.03,
+      "retrieved_context_characters": 2,
+      "full_context_characters": 14897,
+      "external_page_requests": 0
+    }
+  ],
+  "limitations": [
+    "Synthetic relevance labels; not client-reviewed lead quality",
+    "No live model calls or external website fetching",
+    "Context sizes are characters, not measured model tokens",
+    "Latency describes local retrieval only"
+  ],
+  "exact_set_matches": 4,
+  "case_count": 4
+}

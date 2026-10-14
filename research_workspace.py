@@ -5,15 +5,14 @@ import json
 import os
 import threading
 from datetime import datetime, timezone
+from storage import load_document, save_document
 
 from business_research import SOURCES, ResearchCrawler, contact_claims, enrich_business, fetch_directory, normalized_name, social_platform, stamp, status_summary, phone, email
 from website_audit import clean_url
 
 
 def save_json(path, value):
-    temp = path.with_suffix(".tmp")
-    temp.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding="utf-8")
-    os.replace(temp, path)
+    save_document(path, value)
 
 
 def age_hours(value):
@@ -27,11 +26,11 @@ class ResearchWorkspace:
     def init_research(self):
         self.directory.mkdir(parents=True, exist_ok=True)
         self.research_file = self.directory / "business_research.json"
-        self.research = json.loads(self.research_file.read_text(encoding="utf-8")) if self.research_file.exists() else {"enrichments": {}, "candidates": {}, "external": {}, "sources": {}, "settings": {"enabled": True, "interval_hours": 24, "batch_size": 5, "sources": ["city_businesses", "city_contractors"]}}
+        self.research = load_document(self.research_file, {"enrichments": {}, "candidates": {}, "external": {}, "sources": {}, "settings": {"enabled": False, "interval_hours": 24, "batch_size": 5, "sources": ["city_businesses", "city_contractors"]}})
         if not isinstance(self.research, dict) or any(not isinstance(self.research.get(k), dict) for k in ("enrichments", "candidates", "external", "sources", "settings")):
             raise ValueError("business_research.json has an invalid structure")
         self.research_job_file = self.directory / "research_job.json"
-        self.research_job = json.loads(self.research_job_file.read_text(encoding="utf-8")) if self.research_job_file.exists() else {"status": "idle", "message": "Ready for automated research", "completed": 0, "total": 0}
+        self.research_job = load_document(self.research_job_file, {"status": "idle", "message": "Ready for automated research", "completed": 0, "total": 0})
         if self.research_job.get("status") == "running":
             self.research_job.update(status="interrupted", message="Previous research was interrupted. Saved findings remain; run again to continue.")
             save_json(self.research_job_file, self.research_job)
@@ -93,7 +92,7 @@ class ResearchWorkspace:
         if not isinstance(force, bool) or not (ids or sources):
             raise ValueError("Choose businesses or a directory source")
         with self.lock:
-            if self.research_job["status"] == "running" or self.audit_job["status"] == "running":
+            if self.research_job["status"] == "running" or self.audit_job["status"] == "running" or getattr(self, 'rendered_running', False) or getattr(self, 'extra_active', None):
                 raise ValueError("Wait for the current website/research batch, or stop it first")
             targets, skipped = [], 0
             for identity in dict.fromkeys(ids):
@@ -109,10 +108,20 @@ class ResearchWorkspace:
                     continue
                 targets.append({"id": identity, "url": clean_url(url), "business": business})
             self.research_cancel.clear()
-            self.research_job = {"status": "running", "message": "Starting public-source research…", "started_at": stamp(), "completed": 0, "total": len(targets)+len(set(sources)), "skipped": skipped, "ids": [t["id"] for t in targets], "sources": list(dict.fromkeys(sources)), "errors": [], "results": []}
+            self.research_job = {"status": "running", "message": "Starting public-source research…", "started_at": stamp(), "completed": 0, "total": len(targets)+len(set(sources)), "skipped": skipped, "ids": [t["id"] for t in targets], "sources": list(dict.fromkeys(sources)), "errors": [], "results": [], "pending_ids": [t["id"] for t in targets], "pending_sources": list(dict.fromkeys(sources))}
             save_json(self.research_job_file, self.research_job)
         threading.Thread(target=self._run_research, args=(targets, list(dict.fromkeys(sources))), daemon=True).start()
         return dict(self.research_job)
+
+    def resume_research(self):
+        with self.lock:
+            if self.research_job.get("status") == "running":
+                raise ValueError("Research is already running")
+            ids = list(self.research_job.get("pending_ids", []))
+            sources = list(self.research_job.get("pending_sources", []))
+            if not ids and not sources:
+                raise ValueError("No unfinished research tasks to resume")
+        return self.start_research({"ids": ids, "sources": sources, "force": True})
 
     def cancel_research(self):
         self.research_cancel.set()
@@ -145,10 +154,18 @@ class ResearchWorkspace:
                     else:
                         result = enrich_business(target["business"], target["url"], crawler)
                         with self.lock:
+                            previous = self.research["enrichments"].get(target["id"], {})
+                            if previous:
+                                result["history"] = [{k: v for k,v in previous.items() if k != "history"}, *previous.get("history", [])][:12]
                             updated = {**self.research, "enrichments": {**self.research["enrichments"], target["id"]: result}}
                             save_json(self.research_file, updated)
                             self.research = updated
                             self.research_job["results"].append(target["id"])
+                    with self.lock:
+                        key = "pending_sources" if kind == "source" else "pending_ids"
+                        identity = target if kind == "source" else target["id"]
+                        if identity in self.research_job.get(key, []):
+                            self.research_job[key].remove(identity)
                 except Exception as exc:
                     with self.lock:
                         self.research_job["errors"].append({"target": name, "message": str(exc)[:200]})
@@ -174,7 +191,7 @@ class ResearchWorkspace:
         location_type = payload.get("location_type", "unknown")
         if location_type not in {"unknown", "home_based", "service_area", "storefront", "online_only"}:
             raise ValueError("Unknown location type")
-        for key in ("service_area", "category", "website", "phone", "email", "social_url"):
+        for key in ("service_area", "category", "website", "phone", "email", "social_url", "organization_type", "services", "source_excerpt", "observed_at"):
             if key in payload and (not isinstance(payload[key], str) or len(payload[key]) > 2048):
                 raise ValueError("Invalid listing field")
         sites, socials = [], []
@@ -188,6 +205,13 @@ class ResearchWorkspace:
                      "phones": [v] if (v := phone(payload.get("phone", ""))) else [], "emails": [v] if (v := email(payload.get("email", ""))) else [],
                      "location_type": location_type, "service_area": payload.get("service_area") or "Unconfirmed", "source": {"provider": "Researcher-submitted public listing", "url": source, "collected_at": stamp()},
                      "review_status": "new", "scope_status": "needs_review", "business_status": "unknown"}
+        if payload.get("organization_type"):
+            if payload["organization_type"] not in {"business", "school", "school_district", "nonprofit", "public_body"}:
+                raise ValueError("Invalid organization type")
+            candidate["organization_type"] = payload["organization_type"]
+        for key in ("services", "source_excerpt", "observed_at"):
+            if payload.get(key):
+                candidate[key] = payload[key]
         if payload.get("email") and not candidate["emails"] or payload.get("phone") and not candidate["phones"]:
             raise ValueError("Check the email/US telephone format")
         with self.lock:
@@ -198,6 +222,12 @@ class ResearchWorkspace:
             save_json(self.research_file, updated)
             self.research = updated
         return {"candidate": candidate, "created": True}
+
+    def import_target_catalog(self):
+        from pathlib import Path
+        catalog = json.loads((Path(__file__).parent / "assets" / "target-organizations.json").read_text(encoding="utf-8"))
+        results = [self.add_candidate(record) for record in catalog["records"]]
+        return {"added": sum(r["created"] for r in results), "existing": sum(not r["created"] for r in results), "message": "Starter sources added to discovery inbox; review each organization, services, branch, and geography before using."}
 
     def import_candidates(self, payload):
         content = payload.get("csv")
@@ -230,7 +260,8 @@ class ResearchWorkspace:
                 business_id = "lead:"+identity
                 external.setdefault(business_id, {"_id": business_id, "name": candidate["name"], "category": "external:"+candidate["category"], "address": {}, "location": None, "coordinate_method": "not_mapped",
                     "websites": candidate["websites"], "website_status": "listed_external_unverified" if candidate["websites"] else "not_listed_in_osm", "phones": candidate["phones"], "emails": candidate["emails"], "social_urls": candidate.get("social_urls", []),
-                    "location_type": candidate["location_type"], "service_area": candidate["service_area"], "quality_flags": ["identity_and_service_area_need_review"], "duplicate_candidates": [], "source": candidate["source"], "license_evidence": candidate.get("license_evidence", {})})
+                    "location_type": candidate["location_type"], "service_area": candidate["service_area"], "quality_flags": ["identity_and_service_area_need_review"], "duplicate_candidates": [], "source": candidate["source"], "license_evidence": candidate.get("license_evidence", {}),
+                    "organization_suggestion": {k: candidate.get(k, "") for k in ("organization_type", "services", "source_excerpt", "observed_at")}})
                 candidate.update(review_status="added", added_id=business_id)
             else:
                 candidate["review_status"] = "dismissed" if action == "dismiss" else "new"

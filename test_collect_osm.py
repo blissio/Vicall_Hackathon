@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from collect_osm import clean, export, fetch, normalize, website
+from collect_osm import clean, export, fetch, normalize, website, ENDPOINT, FALLBACK_ENDPOINTS
 
 
 def element(identity=1, **tags):
@@ -74,6 +74,30 @@ class CollectorTests(unittest.TestCase):
             self.assertEqual(first, (path / "processed/businesses.jsonl").read_text(encoding="utf-8"))
             self.assertIn("https://www.openstreetmap.org/node/1", first)
             self.assertIn("'=HYPERLINK", (path / "processed/businesses.csv").read_text(encoding="utf-8-sig"))
+
+    def test_gateway_failure_uses_fallback_and_reuses_its_cache(self):
+        from io import BytesIO
+        from urllib.error import HTTPError
+        with tempfile.TemporaryDirectory(dir=Path(__file__).parent) as directory:
+            body = BytesIO(json.dumps({"elements": [{"type": "relation", "id": 188553}]}).encode())
+            with patch('collect_osm.urlopen', side_effect=[HTTPError(ENDPOINT, 502, 'Bad Gateway', {}, None), body]) as request, patch('collect_osm.time.sleep') as sleep:
+                result = fetch('query', ENDPOINT, Path(directory))
+                self.assertEqual(result['endpoint'], FALLBACK_ENDPOINTS[0])
+                self.assertEqual(request.call_args_list[1].args[0].full_url, FALLBACK_ENDPOINTS[0])
+                sleep.assert_not_called()
+            with patch('collect_osm.urlopen') as request:
+                self.assertEqual(fetch('query', ENDPOINT, Path(directory)), result)
+                request.assert_not_called()
+
+    def test_rate_limit_waits_on_same_endpoint_instead_of_rotating(self):
+        from io import BytesIO
+        from urllib.error import HTTPError
+        with tempfile.TemporaryDirectory(dir=Path(__file__).parent) as directory:
+            body = BytesIO(json.dumps({"elements": []}).encode())
+            with patch('collect_osm.urlopen', side_effect=[HTTPError(ENDPOINT, 429, 'Too Many Requests', {'Retry-After': '45'}, None), body]) as request, patch('collect_osm.time.sleep') as sleep:
+                fetch('query', ENDPOINT, Path(directory))
+                sleep.assert_called_once_with(45)
+                self.assertEqual(request.call_args_list[1].args[0].full_url, ENDPOINT)
 
 
 if __name__ == "__main__":

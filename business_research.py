@@ -6,7 +6,7 @@ import re
 from datetime import datetime, timezone
 from urllib.parse import urlencode, urljoin, urlsplit, unquote
 
-from website_audit import AGENT, PageParser, PublicFetcher, RobotsDenied, clean_url, origin, robots_policy
+from website_audit import AGENT, PageParser, PublicFetcher, RobotsDenied, clean_url, origin, robots_policy, inspect_page
 
 SOURCES = {
     "city_businesses": {"name": "Pittsburgh business licenses", "resource": "e88c10d5-541d-417f-aef6-25cc5637aeb1", "dataset": "business-contractors-trades", "fields": "license_number,license_type_name,business_name,license_state,expiration_date,most_recent_issue_date,email_address,primary_phone_number", "active": True},
@@ -134,10 +134,38 @@ def extract_contacts(page, checked_at=None):
             link = clean_url(urljoin(page["url"], href))
         except ValueError:
             continue
-        if origin(link) == origin(page["url"]) and re.search(r"contact|about|service", urlsplit(link).path, re.I):
+        if origin(link) == origin(page["url"]) and re.search(r"contact|about|service|staff|team|leadership|administration|procurement", urlsplit(link).path, re.I):
             if link not in links and link != page["url"]:
                 links.append(link)
     return list(claims.values()), links, " ".join(" ".join(parser.text).split())[:5000]
+
+
+def extract_people(page, observed_at):
+    """Explicit Person JSON-LD is a suggestion, never inferred authority."""
+    parser = ContactParser()
+    parser.feed(page["text"])
+    people = []
+
+    def walk(value):
+        if isinstance(value, dict):
+            kind = value.get("@type", [])
+            if kind == "Person" or isinstance(kind, list) and "Person" in kind:
+                name, role = value.get("name"), value.get("jobTitle")
+                if isinstance(name, str) and isinstance(role, str) and 1 < len(name) <= 200 and 1 < len(role) <= 200:
+                    people.append({"name": name, "role": role, "email": email(value.get("email", "")) or "", "phone": phone(value.get("telephone", "")) or "", "source_url": page["url"], "observed_at": observed_at, "excerpt": json.dumps(value, ensure_ascii=False)[:4000], "verification": "observed_structured_person_unreviewed"})
+            for item in value.values():
+                walk(item)
+        elif isinstance(value, list):
+            for item in value:
+                walk(item)
+    for raw in parser.json_ld:
+        try:
+            walk(json.loads(raw))
+        except (ValueError, RecursionError):
+            pass
+    from staff_research import extract_staff
+    people.extend(extract_staff(page, observed_at))
+    return list({(p['name'].casefold(), p['role'].casefold(), p['source_url']): p for p in people}.values())[:25]
 
 
 class ResearchCrawler:
@@ -198,6 +226,11 @@ def enrich_business(business, url, crawler=None):
                 continue
             allowed_origin = allowed_origin or origin(page["url"])
             claims, links, text = extract_contacts(page, result["checked_at"])
+            item["text_excerpt"] = text
+            analysis = inspect_page(page)
+            item["technical_checks"] = analysis["checks"]
+            item["page_metadata"] = {k: analysis["metrics"].get(k) for k in ("title", "description")}
+            result.setdefault("people", []).extend(extract_people(page, result["checked_at"]))
             item["outcome"] = "partial" if page["truncated"] else "html_observed"
             result["contacts"].extend(claims)
             result["status"] = "partial" if page["truncated"] else "observed"
@@ -215,6 +248,16 @@ def enrich_business(business, url, crawler=None):
             if not result["contacts"]:
                 result["message"] = str(exc)[:180]
     result["contacts"] = list({(c["kind"], c["value"], c["source_url"]): c for c in result["contacts"]}.values())
+    result["metadata_comparisons"] = []
+    for field in ("title", "description"):
+        groups = {}
+        for page in result["pages"]:
+            value = page.get("page_metadata", {}).get(field)
+            if value:
+                groups.setdefault(value, []).append(page["url"])
+        for value, urls in groups.items():
+            if len(set(urls)) > 1:
+                result["metadata_comparisons"].append({"field": field, "value": value, "urls": list(dict.fromkeys(urls)), "note": "Repeated metadata in sampled pages; review whether appropriate"})
     result["message"] = (result.get("message") or "No readable business HTML confirmed. Review the individual page outcomes; no operation or contact conclusion inferred.") if result["status"] == "inconclusive" else f"Sampled {len(result['pages'])} pages; observed {len(result['contacts'])} contact references. Business identity and contact deliverability remain unverified."
     return result
 

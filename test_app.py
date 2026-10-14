@@ -128,7 +128,7 @@ class WorkspaceTests(unittest.TestCase):
     def test_failed_collection_preserves_dataset_and_notes(self):
         self.workspace.update({"id": "osm:node:1", "notes": "Preserve me"})
         before = (self.directory / "processed/businesses.jsonl").read_bytes()
-        with patch("app.subprocess.run", return_value=subprocess.CompletedProcess([], 1, "", "Network unavailable")):
+        with patch.object(self.workspace, '_execute_collector', return_value=subprocess.CompletedProcess([], 1, "", "Network unavailable")):
             self.workspace._run_job("refresh")
         self.assertEqual(self.workspace.job_status()["status"], "failed")
         self.assertEqual(before, (self.directory / "processed/businesses.jsonl").read_bytes())
@@ -260,6 +260,23 @@ class LocalServerTests(unittest.TestCase):
         with self.assertRaises(HTTPError) as context:
             self.request("/api/audit",{"ids":["osm:node:1"],"url":"http://localhost/"})
         self.assertEqual(context.exception.code,400)
+
+    def test_intelligence_api_search_contact_and_export_workflow(self):
+        with self.request('/api/person', {'business_id': 'osm:node:1', 'name': 'Fixture Partner', 'role': 'Partner', 'source_url': 'https://example.com/team', 'observed_at': timestamp_for_test(), 'excerpt': 'Fixture public role evidence'}) as response:
+            self.assertEqual(json.load(response)['role'], 'Partner')
+        with self.request('/api/ask', {'question': 'cafe', 'require_decision_maker': True, 'use_ai': False}) as response:
+            answer = json.load(response)
+            self.assertEqual([r['id'] for r in answer['results']], ['osm:node:1'])
+        with self.request('/api/business?id=osm%3Anode%3A1') as response:
+            self.assertEqual(len(json.load(response)['contacts']), 1)
+        with self.request('/api/openapi.json') as response:
+            self.assertIn('/api/ask', json.load(response)['paths'])
+        with self.request('/api/search?question=cafe&limit=1') as response:
+            self.assertEqual(len(json.load(response)['results']), 1)
+
+
+def timestamp_for_test():
+    return datetime.now(timezone.utc).isoformat()
 
 
 if __name__ == "__main__":

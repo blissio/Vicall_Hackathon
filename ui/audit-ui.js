@@ -135,7 +135,7 @@
     const flags = a.checks?.filter(c=>c.status==='critical').length;
     const coverage = a.score_coverage;
     const score = a.score==null ? '—' : a.score;
-    const metadata=[['Checked',date(a.checked_at)],['HTTP response',a.http_status || 'Not confirmed'],['Fetch time',a.fetch_ms == null ? 'Not measured' : `${count(a.fetch_ms)} ms · one sample`],['URL source',a.target_source==='user_supplied'?'Entered by researcher':'Listed in OpenStreetMap'],['Audit version',a.audit_version || 'Unknown']];
+    const metadata=[['Checked',date(a.checked_at)],['HTTP response',a.http_status || 'Not confirmed'],['Fetch time',a.fetch_ms == null ? 'Not measured' : `${count(a.fetch_ms)} ms · one sample`],['URL source',a.target_source==='user_supplied'?'Entered by researcher':a.target_source==='listed_in_osm'?'Listed in OpenStreetMap':a.target_source==='fictional_demo'?'Fictional demo fixture':'External listing / source unconfirmed'],['Audit version',a.audit_version || 'Unknown']];
     $('#detail-audit-report').innerHTML=`
       <div class="audit-score-card"><div><div class="card-kicker">TECHNICAL SEO CHECKLIST</div><div class="audit-grade">${esc(gradeLabels[a.grade] || 'Inconclusive')}</div><span class="reach-badge reach-${esc(a.reachability)}">${esc(reachLabels[a.reachability] || 'Inconclusive')}</span></div><div class="score-value">${score}<small>${a.score==null?'not scored':'/ 100'}</small></div></div>
       <p class="audit-message">${esc(a.message)}</p>

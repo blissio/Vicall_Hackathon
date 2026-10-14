@@ -184,6 +184,7 @@ class PublicFetcher:
                 except LookupError:
                     text = content[:limit].decode("utf-8", errors="replace")
                 return {"url": url, "status": response.status, "headers": headers, "text": text,
+                        "body": content[:limit],
                         "bytes_read": min(len(content), limit), "truncated": truncated,
                         "redirects": redirects, "fetch_ms": round((request_seconds + time.monotonic() - request_started) * 1000)}
             finally:

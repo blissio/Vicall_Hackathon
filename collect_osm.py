@@ -16,9 +16,10 @@ from urllib.request import Request, urlopen
 from neighborhoods import SOURCE_URL as NEIGHBORHOOD_SOURCE, enrich_neighborhoods
 
 ENDPOINT = "https://overpass-api.de/api/interpreter"
+FALLBACK_ENDPOINTS = ("https://overpass.private.coffee/api/interpreter",)
 AMENITIES = {"restaurant", "cafe", "fast_food", "bar", "pub", "biergarten",
              "food_court", "ice_cream", "dentist", "doctors", "clinic",
-             "veterinary", "pharmacy", "bank", "car_rental", "car_wash"}
+             "veterinary", "pharmacy", "bank", "car_rental", "car_wash", "school", "college", "university"}
 TOURISM = {"hotel", "motel", "guest_house", "hostel"}
 NONCOMMERCIAL_OFFICES = {"government", "association", "ngo", "political_party",
                          "religion", "diplomatic", "charity"}
@@ -40,14 +41,27 @@ def write_json(path, data):
 
 def fetch(query, endpoint, cache_dir, refresh=False):
     """Cache complete responses; reject Overpass runtime errors, including partial data."""
-    digest = hashlib.sha256((endpoint + query).encode()).hexdigest()[:20]
-    cache = cache_dir / f"{digest}.json"
-    if cache.exists() and not refresh:
-        return json.loads(cache.read_text(encoding="utf-8"))
-    request = Request(endpoint, data=urlencode({"data": query}).encode(),
-                      headers={"User-Agent": "VicallHackathonOSMCollector/0.1",
-                               "Content-Type": "application/x-www-form-urlencoded"})
+    endpoints = [endpoint, *FALLBACK_ENDPOINTS] if endpoint == ENDPOINT else [endpoint]
+    cached = []
+    for source in endpoints:
+        digest = hashlib.sha256((source + query).encode()).hexdigest()[:20]
+        path = cache_dir / f"{digest}.json"
+        if path.exists() and not refresh:
+            value = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(value.get("payload", {}).get("elements"), list) and not value["payload"].get("remark"):
+                cached.append(value)
+    if cached:
+        print("Using saved Overpass response", flush=True)
+        return max(cached, key=lambda value: value.get("collected_at", ""))
+    source_index = 0
     for attempt in range(3):
+        source = endpoints[source_index]
+        digest = hashlib.sha256((source + query).encode()).hexdigest()[:20]
+        cache = cache_dir / f"{digest}.json"
+        request = Request(source, data=urlencode({"data": query}).encode(),
+                          headers={"User-Agent": "VicallHackathonOSMCollector/0.1",
+                                   "Content-Type": "application/x-www-form-urlencoded"})
+        print(f"Request {attempt+1}/3: {source}", flush=True)
         try:
             with urlopen(request, timeout=150) as response:
                 payload = json.load(response)
@@ -55,20 +69,27 @@ def fetch(query, endpoint, cache_dir, refresh=False):
                 raise ValueError(f"Overpass returned incomplete data: {payload['remark']}")
             if not isinstance(payload.get("elements"), list):
                 raise ValueError("Overpass response is missing elements")
-            envelope = {"collected_at": now(), "endpoint": endpoint, "query": query,
+            envelope = {"collected_at": now(), "endpoint": source, "query": query,
                         "payload": payload}
             write_json(cache, envelope)
+            print(f"Received {len(payload['elements']):,} source records", flush=True)
             return envelope
         except HTTPError as exc:
             if exc.code not in {429, 502, 503, 504} or attempt == 2:
                 raise
             retry = exc.headers.get("Retry-After", "")
-            delay = max(20 * (attempt + 1), int(retry) if retry.isdigit() else 0)
+            delay = max(30 if exc.code == 429 else 20 * (attempt + 1), int(retry) if retry.isdigit() else 0)
+            switch = exc.code in {502, 503, 504} and source_index + 1 < len(endpoints)
         except (URLError, TimeoutError):
             if attempt == 2:
                 raise
             delay = 20 * (attempt + 1)
-        print(f"Overpass temporarily unavailable; retrying in {delay}s", file=sys.stderr)
+            switch = source_index + 1 < len(endpoints)
+        if switch:
+            source_index += 1
+            print("Overpass unavailable; trying the fallback public server", flush=True)
+            continue
+        print(f"Overpass temporarily unavailable; retrying in {delay}s", file=sys.stderr, flush=True)
         time.sleep(delay)
 
 
@@ -276,6 +297,7 @@ def main():
     if args.input:
         envelope = json.loads(args.input.read_text(encoding="utf-8"))
     else:
+        print("Resolving the Pittsburgh city boundary...", flush=True)
         boundary = fetch(BOUNDARY_QUERY, args.endpoint, args.output / "cache", args.refresh)
         relations = boundary["payload"]["elements"]
         if len(relations) != 1 or relations[0]["type"] != "relation":

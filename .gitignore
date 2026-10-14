@@ -2,3 +2,8 @@ __pycache__/
 .venv/
 .env
 data/
+demo_data/
+.browser-deps/
+.venv-browser/
+users.json
+.local-ai/

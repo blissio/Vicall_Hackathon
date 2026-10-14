@@ -1,0 +1,1978 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Pittsburgh IQ research API",
+    "version": "2.0.0",
+    "description": "Local evidence research and optional model interpretation. Local API: X-Vicall-Token from the app or VICALL_API_TOKEN bearer credential. Team API: Basic account authentication or VICALL_TEAM_API_TOKEN bearer credential; role checks apply."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:8765"
+    }
+  ],
+  "security": [
+    {
+      "BearerToken": []
+    },
+    {
+      "LocalToken": []
+    },
+    {
+      "BasicAccount": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerToken": {
+        "type": "http",
+        "scheme": "bearer"
+      },
+      "LocalToken": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Vicall-Token"
+      },
+      "BasicAccount": {
+        "type": "http",
+        "scheme": "basic"
+      }
+    },
+    "schemas": {
+      "Search": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "intent": {
+            "type": "string",
+            "enum": [
+              "prospects",
+              "providers",
+              "partners"
+            ],
+            "default": "prospects"
+          },
+          "segment": {
+            "type": "string",
+            "enum": [
+              "",
+              "professional",
+              "accounting",
+              "legal",
+              "insurance",
+              "real_estate",
+              "consulting",
+              "education",
+              "healthcare",
+              "food",
+              "technology",
+              "other"
+            ]
+          },
+          "organization_type": {
+            "type": "string",
+            "enum": [
+              "",
+              "business",
+              "school",
+              "school_district",
+              "nonprofit",
+              "public_body"
+            ]
+          },
+          "category": {
+            "type": "string"
+          },
+          "neighborhood": {
+            "type": "string"
+          },
+          "desired_services": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "partner_services": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "default": 10
+          },
+          "require_contact": {
+            "type": "boolean",
+            "default": false
+          },
+          "require_decision_maker": {
+            "type": "boolean",
+            "default": false
+          },
+          "require_website_issue": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "Ask": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "intent": {
+            "type": "string",
+            "enum": [
+              "prospects",
+              "providers",
+              "partners"
+            ],
+            "default": "prospects"
+          },
+          "segment": {
+            "type": "string",
+            "enum": [
+              "",
+              "professional",
+              "accounting",
+              "legal",
+              "insurance",
+              "real_estate",
+              "consulting",
+              "education",
+              "healthcare",
+              "food",
+              "technology",
+              "other"
+            ]
+          },
+          "organization_type": {
+            "type": "string",
+            "enum": [
+              "",
+              "business",
+              "school",
+              "school_district",
+              "nonprofit",
+              "public_body"
+            ]
+          },
+          "category": {
+            "type": "string"
+          },
+          "neighborhood": {
+            "type": "string"
+          },
+          "desired_services": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "partner_services": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "default": 10
+          },
+          "require_contact": {
+            "type": "boolean",
+            "default": false
+          },
+          "require_decision_maker": {
+            "type": "boolean",
+            "default": false
+          },
+          "require_website_issue": {
+            "type": "boolean",
+            "default": false
+          },
+          "use_ai": {
+            "type": "boolean",
+            "default": false
+          },
+          "use_ai_plan": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "Person": {
+        "type": "object",
+        "required": [
+          "business_id",
+          "name",
+          "role",
+          "source_url",
+          "observed_at",
+          "excerpt"
+        ],
+        "properties": {
+          "business_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "source_url": {
+            "type": "string"
+          },
+          "observed_at": {
+            "type": "string"
+          },
+          "excerpt": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "expected_revision": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Last-read revision; stale saves are rejected"
+          },
+          "id": {
+            "type": "string",
+            "description": "Existing contact ID when editing"
+          }
+        }
+      },
+      "Organization": {
+        "type": "object",
+        "required": [
+          "id",
+          "organization_type",
+          "source_url",
+          "observed_at",
+          "excerpt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "organization_type": {
+            "type": "string"
+          },
+          "services": {
+            "type": "string"
+          },
+          "service_area": {
+            "type": "string"
+          },
+          "parent_id": {
+            "type": "string"
+          },
+          "source_url": {
+            "type": "string"
+          },
+          "observed_at": {
+            "type": "string"
+          },
+          "excerpt": {
+            "type": "string"
+          },
+          "expected_revision": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Last-read revision; stale saves are rejected"
+          }
+        }
+      },
+      "Workflow": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 12000
+          },
+          "shortlisted": {
+            "type": "boolean"
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "New",
+              "Researching",
+              "Qualified",
+              "Not a fit"
+            ]
+          },
+          "expected_updated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "SavedSearch": {
+        "type": "object",
+        "required": [
+          "name",
+          "query"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "query": {
+            "$ref": "#/components/schemas/Search"
+          }
+        }
+      },
+      "Export": {
+        "type": "object",
+        "required": [
+          "ids"
+        ],
+        "properties": {
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "AuditRequest": {
+        "type": "object",
+        "required": [
+          "id",
+          "url"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "strategy": {
+            "type": "string",
+            "enum": [
+              "mobile",
+              "desktop"
+            ],
+            "default": "mobile"
+          }
+        }
+      },
+      "MatchingSettings": {
+        "type": "object",
+        "required": [
+          "weights"
+        ],
+        "properties": {
+          "weights": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "relevance",
+              "observed_need",
+              "public_contact",
+              "reviewed_role",
+              "recent_evidence",
+              "reviewed_identity",
+              "partner_fit"
+            ],
+            "properties": {
+              "relevance": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "observed_need": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "public_contact": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "reviewed_role": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "recent_evidence": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "reviewed_identity": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "partner_fit": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              }
+            }
+          }
+        }
+      },
+      "Object": {
+        "type": "object"
+      }
+    }
+  },
+  "paths": {
+    "/api/link-audit": {
+      "post": {
+        "operationId": "link_audit",
+        "summary": "Sample up to ten same-origin links",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuditRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or stale research revision"
+          },
+          "403": {
+            "description": "Authentication, origin, token, or role denied"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      }
+    },
+    "/api/performance-audit": {
+      "post": {
+        "operationId": "performance_audit",
+        "summary": "Google Lighthouse lab report",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuditRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or stale research revision"
+          },
+          "403": {
+            "description": "Authentication, origin, token, or role denied"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      }
+    },
+    "/api/field-audit": {
+      "post": {
+        "operationId": "field_audit",
+        "summary": "Google CrUX real-user metrics",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuditRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or stale research revision"
+          },
+          "403": {
+            "description": "Authentication, origin, token, or role denied"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      }
+    },
+    "/api/matching-settings": {
+      "post": {
+        "operationId": "matching_settings",
+        "summary": "Set shared ranking weights (team admin)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MatchingSettings"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or stale research revision"
+          },
+          "403": {
+            "description": "Authentication, origin, token, or role denied"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      }
+    },
+    "/api/search": {
+      "post": {
+        "operationId": "search",
+        "summary": "Search retained business evidence",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Search"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or stale research revision"
+          },
+          "403": {
+            "description": "Authentication, origin, token, or role denied"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      },
+      "get": {
+        "operationId": "search_get",
+        "summary": "Search using query parameters",
+        "parameters": [
+          {
+            "name": "question",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            }
+          },
+          {
+            "name": "intent",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "prospects",
+                "providers",
+                "partners"
+              ],
+              "default": "prospects"
+            }
+          },
+          {
+            "name": "segment",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "",
+                "professional",
+                "accounting",
+                "legal",
+                "insurance",
+                "real_estate",
+                "consulting",
+                "education",
+                "healthcare",
+                "food",
+                "technology",
+                "other"
+              ]
+            }
+          },
+          {
+            "name": "organization_type",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "",
+                "business",
+                "school",
+                "school_district",
+                "nonprofit",
+                "public_body"
+              ]
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "neighborhood",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "desired_services",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 1000
+            }
+          },
+          {
+            "name": "partner_services",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 1000
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 10
+            }
+          },
+          {
+            "name": "require_contact",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "require_decision_maker",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "require_website_issue",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results"
+          },
+          "400": {
+            "description": "Invalid parameters"
+          }
+        }
+      }
+    },
+    "/api/ask": {
+      "post": {
+        "operationId": "ask",
+        "summary": "Research with optional grounded AI",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Ask"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or stale research revision"
+          },
+          "403": {
+            "description": "Authentication, origin, token, or role denied"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      }
+    },
+    "/api/person": {
+      "post": {
+        "operationId": "person",
+        "summary": "Save a sourced public person/role",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Person"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or stale research revision"
+          },
+          "403": {
+            "description": "Authentication, origin, token, or role denied"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      }
+    },
+    "/api/organization": {
+      "post": {
+        "operationId": "organization",
+        "summary": "Review organization, services, and parent",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Organization"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or stale research revision"
+          },
+          "403": {
+            "description": "Authentication, origin, token, or role denied"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      }
+    },
+    "/api/workflow": {
+      "post": {
+        "operationId": "workflow",
+        "summary": "Update notes/stage/shortlist; use expected_updated_at for conflict detection",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Workflow"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or stale research revision"
+          },
+          "403": {
+            "description": "Authentication, origin, token, or role denied"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      }
+    },
+    "/api/saved-search": {
+      "post": {
+        "operationId": "saved_search",
+        "summary": "Save reusable search criteria",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavedSearch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or stale research revision"
+          },
+          "403": {
+            "description": "Authentication, origin, token, or role denied"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      }
+    },
+    "/api/export": {
+      "post": {
+        "operationId": "export",
+        "summary": "Export business/contact evidence as CSV",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Export"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or stale research revision"
+          },
+          "403": {
+            "description": "Authentication, origin, token, or role denied"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      }
+    },
+    "/api/person-delete": {
+      "post": {
+        "operationId": "person_delete",
+        "summary": "Remove reviewed contact by id",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or stale research revision"
+          },
+          "403": {
+            "description": "Authentication, origin, token, or role denied"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      }
+    },
+    "/api/saved-search-delete": {
+      "post": {
+        "operationId": "saved_search_delete",
+        "summary": "Delete saved search by id",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or stale research revision"
+          },
+          "403": {
+            "description": "Authentication, origin, token, or role denied"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      }
+    },
+    "/api/backup": {
+      "post": {
+        "operationId": "backup",
+        "summary": "Create a SQLite backup (team admin)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or stale research revision"
+          },
+          "403": {
+            "description": "Authentication, origin, token, or role denied"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      }
+    },
+    "/api/collect": {
+      "post": {
+        "operationId": "collect",
+        "summary": "Collect OSM: mode collect, refresh, or clean (team admin)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or stale research revision"
+          },
+          "403": {
+            "description": "Authentication, origin, token, or role denied"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      }
+    },
+    "/api/collect-cancel": {
+      "post": {
+        "operationId": "collect_cancel",
+        "summary": "Stop active collection (team admin)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or stale research revision"
+          },
+          "403": {
+            "description": "Authentication, origin, token, or role denied"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      }
+    },
+    "/api/collect-resume": {
+      "post": {
+        "operationId": "collect_resume",
+        "summary": "Resume unfinished collection using saved source responses (team admin)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or stale research revision"
+          },
+          "403": {
+            "description": "Authentication, origin, token, or role denied"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      }
+    },
+    "/api/audit": {
+      "post": {
+        "operationId": "audit",
+        "summary": "Audit 1\u201325 business ids with optional url and force",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or stale research revision"
+          },
+          "403": {
+            "description": "Authentication, origin, token, or role denied"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      }
+    },
+    "/api/audit-cancel": {
+      "post": {
+        "operationId": "audit_cancel",
+        "summary": "Stop audit after current website",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or stale research revision"
+          },
+          "403": {
+            "description": "Authentication, origin, token, or role denied"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      }
+    },
+    "/api/audit-resume": {
+      "post": {
+        "operationId": "audit_resume",
+        "summary": "Resume unfinished audit targets",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or stale research revision"
+          },
+          "403": {
+            "description": "Authentication, origin, token, or role denied"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      }
+    },
+    "/api/research": {
+      "post": {
+        "operationId": "research",
+        "summary": "Research ids and/or public-directory sources",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or stale research revision"
+          },
+          "403": {
+            "description": "Authentication, origin, token, or role denied"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      },
+      "get": {
+        "operationId": "get_research",
+        "summary": "Research settings, job, and inbox",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      }
+    },
+    "/api/research-cancel": {
+      "post": {
+        "operationId": "research_cancel",
+        "summary": "Stop research after current task",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or stale research revision"
+          },
+          "403": {
+            "description": "Authentication, origin, token, or role denied"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      }
+    },
+    "/api/research-resume": {
+      "post": {
+        "operationId": "research_resume",
+        "summary": "Resume unfinished research tasks",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or stale research revision"
+          },
+          "403": {
+            "description": "Authentication, origin, token, or role denied"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      }
+    },
+    "/api/research-settings": {
+      "post": {
+        "operationId": "research_settings",
+        "summary": "Configure automation (team admin)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or stale research revision"
+          },
+          "403": {
+            "description": "Authentication, origin, token, or role denied"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      }
+    },
+    "/api/discovery-add": {
+      "post": {
+        "operationId": "discovery_add",
+        "summary": "Submit sourced business listing",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or stale research revision"
+          },
+          "403": {
+            "description": "Authentication, origin, token, or role denied"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      }
+    },
+    "/api/discovery-import": {
+      "post": {
+        "operationId": "discovery_import",
+        "summary": "Import CSV to discovery inbox",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or stale research revision"
+          },
+          "403": {
+            "description": "Authentication, origin, token, or role denied"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      }
+    },
+    "/api/discovery-review": {
+      "post": {
+        "operationId": "discovery_review",
+        "summary": "Review candidate: add, dismiss, or restore",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or stale research revision"
+          },
+          "403": {
+            "description": "Authentication, origin, token, or role denied"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      }
+    },
+    "/api/target-catalog": {
+      "post": {
+        "operationId": "target_catalog",
+        "summary": "Add official-source office/district starter catalog to inbox (team admin)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or stale research revision"
+          },
+          "403": {
+            "description": "Authentication, origin, token, or role denied"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      }
+    },
+    "/api/rendered-audit": {
+      "post": {
+        "operationId": "rendered_audit",
+        "summary": "Start optional browser-rendered audit for id and url",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or stale research revision"
+          },
+          "403": {
+            "description": "Authentication, origin, token, or role denied"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      }
+    },
+    "/api/data": {
+      "get": {
+        "operationId": "get_data",
+        "summary": "Directory snapshot",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      }
+    },
+    "/api/intelligence": {
+      "get": {
+        "operationId": "get_intelligence",
+        "summary": "Saved searches, history, and configuration status",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      }
+    },
+    "/api/business": {
+      "get": {
+        "operationId": "get_business",
+        "summary": "Business with reviewed contacts and evidence",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      }
+    },
+    "/api/job": {
+      "get": {
+        "operationId": "get_job",
+        "summary": "Collection progress",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      }
+    },
+    "/api/audit-job": {
+      "get": {
+        "operationId": "get_audit_job",
+        "summary": "Audit progress",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      }
+    },
+    "/api/audit-report": {
+      "get": {
+        "operationId": "get_audit_report",
+        "summary": "Static audit report and history",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      }
+    },
+    "/api/rendered-report": {
+      "get": {
+        "operationId": "get_rendered_report",
+        "summary": "Rendered audit and screenshots",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      }
+    },
+    "/api/openapi.json": {
+      "get": {
+        "operationId": "get_openapi_json",
+        "summary": "OpenAPI contract",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Record not found"
+          }
+        }
+      }
+    },
+    "/api/link-report": {
+      "get": {
+        "operationId": "get_link_report",
+        "summary": "Read saved link report",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Saved report or not_run"
+          },
+          "404": {
+            "description": "Business not found"
+          }
+        }
+      }
+    },
+    "/api/performance-report": {
+      "get": {
+        "operationId": "get_performance_report",
+        "summary": "Read saved performance report",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Saved report or not_run"
+          },
+          "404": {
+            "description": "Business not found"
+          }
+        }
+      }
+    },
+    "/api/field-report": {
+      "get": {
+        "operationId": "get_field_report",
+        "summary": "Read saved field report",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Saved report or not_run"
+          },
+          "404": {
+            "description": "Business not found"
+          }
+        }
+      }
+    }
+  }
+}

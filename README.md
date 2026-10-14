@@ -1,222 +1,167 @@
-# Vicall: Pittsburgh business research assistant
+# Pittsburgh IQ — local business intelligence
 
-## Graphical application
+A browser directory and research assistant for finding Pittsburgh-area providers, prospects, and potential partners. Developed for the Vicall hackathon challenge, with professional offices and school districts as initial research segments.
 
-**Double-click `Launch Vicall.cmd`** in this folder. It finds the working Python runtime and opens the application in your browser. No packages need to be installed. Keep the launcher running while using the app; press Ctrl+C in its window to stop it.
+The application retains sourced findings, contacts, notes, and website checks. Optional AI interprets retrieved evidence with citations. Search and research management work without a model or API key.
 
-The master entry point is `app.py`:
+## Run locally
+
+Requires Python 3.10+. The core app uses only the standard library.
 
 ```powershell
 python app.py
 ```
 
-On this computer, you can also run `./launch.ps1`. The application normally opens at `http://127.0.0.1:8765`. If the workspace is already running, the launcher reopens that instance. The app listens only on this computer. It is a local research tool; deploying a shared/public service would require a production server and authentication.
+On Windows, double-click **Launch Vicall.cmd** or run `./launch.ps1`. The launcher finds Python relative to your user profile. The browser opens at `http://127.0.0.1:8765`. Keep Python running while using the app.
 
-Features:
+The default workspace starts empty. Use **Data center** for OSM collection, or **Discovery & research** for public-source listings and CSV imports. New workspaces have automation disabled until configured. Existing settings are preserved.
 
-- Minimalist directory with snapshot statistics, category filters, contact/website filters, full-text search, sorting, and pagination.
-- Business profiles with public contacts, opening hours, source dates, website links, and an OpenStreetMap map link.
-- Persistent shortlists, four research stages, and notes/evidence for each business.
-- Research pipeline and data-quality dashboard.
-- Duplicate and incomplete-address review filters; bulk shortlist saving and selection.
-- CSV export of filtered results or selected businesses, including research notes and attribution.
-- Background fresh/cached collection and rebuilding from saved raw data; status/error logs; dated backups before publishing completed collection jobs.
-- Responsive layouts, keyboard navigation, `/` to search, Escape to close a profile, and Ctrl+S to save research.
-- Website lab: reachability and technical SEO checks, per-business evidence/fixes, audit history, batch analysis, progress/cancellation, audit filters, and CSV/JSON evidence exports.
-- Neighborhood dropdown with business counts, neighborhood search, and an A–Z / Z–A sortable directory column; neighborhood fields in CSV exports.
-- Discovery & research: credential-free public-directory imports, four-page website contact enrichment, field-level source evidence, service-area/home business leads, CSV inbox imports, and configurable background automation.
-- Separate operating status, website response, website identity, and contact availability. Researcher-assigned operating/identity findings require evidence; source disagreements are flagged for review.
-
-Notes are explicitly saved with **Save research**. Leaving a profile with unsaved changes asks whether to discard them; cancel to return and save. `data/workspace.json` stores notes/stages/shortlists separately from OSM data, so collection updates preserve research. Completed jobs and prior snapshots are kept in `data/jobs/` and `data/snapshots/`; these folders can grow with repeated collection. Back up the `data` folder to preserve your workspace. Run one application instance per data folder; the launcher enforces this.
-
-The UI lives in `ui/`, and `app.py` uses `collect_osm.py` for collection and `website_audit.py` for analysis. Keep these files, `business_research.py`, `research_workspace.py`, `neighborhoods.py`, and `assets/` together when moving the application. Browsing, research notes and saved audits work offline; collection, fresh website checks and external links need internet access. MongoDB is optional and is not required by the graphical app. AI-generated recommendations remain a future project stage.
-
-### Automated discovery and contact research
-
-Open **Discovery & research**. No API key or directory export is required. The built-in public sources are the City of Pittsburgh business and contractor license records and an optional Allegheny County certified-business directory, accessed through WPRDC's documented public data API. These datasets are published under CC0. The city imports request only records whose **license state** is Active; this does not establish that a business is currently operating or that it serves Pittsburgh. The county source can contain firms outside the target service area. Each source run samples up to 1,000 records and reports its total/coverage limit. Residential-address and owner-name fields are excluded from these imports.
-
-Background automation defaults to enabled, every 24 hours, with the two city sources and five websites per run. It starts shortly after launching `app.py` and runs only while that Python process is open. Change the sources, interval (6 hours–7 days), batch size (1–25), or disable it with **Save automation settings**. This is a bounded incremental sample, not a complete daily scan of every website. The scheduler's last start is saved; restarting does not immediately rerun a recent cycle. Disabling automation prevents subsequent cycles; **Stop after current task** stops a batch already in progress. Partial completion and errors are saved. A running job interrupted by closing Python is marked interrupted on restart; it does not silently resume an arbitrary partially completed queue.
-
-Manual controls research up to ten matching websites or up to 25 selected businesses. Per-profile **Research website contacts** always requests a fresh check; batches reuse results under 24 hours old unless **Recheck recent website research** is checked. The crawler samples the requested website and up to three same-origin contact/about/service pages, observes explicit email/phone/social links, contact pages/forms, and organization JSON-LD, and preserves URL/date/method for each observation. It respects robots rules, rate limits, public-target validation, and verified TLS. It does not submit forms, test deliverability, execute JavaScript, follow social-platform links, infer owners, or verify business identity automatically. Differences from existing phone/email listings prompt branch/identity review. A multi-page contact sample is not yet a full multi-page SEO audit.
-
-Directory leads land in a separate **Discovery inbox**. Name matches are possible duplicates, never automatic merges. Review identity, branch, and service area before **Add to directory**. Dismissed/added review state survives source refreshes. Added businesses, notes, and sourced evidence survive OSM refreshes because they live separately in `data/business_research.json`. Individual licenses are source records; several can belong to the same business. Source errors do not erase the previous inbox.
-
-### Home-based, online, and service-area businesses
-
-A business does not need an OSM pin or street address. Save its public business name, source URL, location type, service area, and optional publicly advertised business channels. The form stores no residential address. Service-area text is an unverified claim; it is not geocoded into a neighborhood. External listings retain an Unknown neighborhood until a reliable location is available.
-
-Facebook/Marketplace references are saved as manually reviewed source links. The app does not collect social-platform pages or private seller information automatically. Facebook's [robots notice](https://www.facebook.com/robots.txt) requires express permission for automated collection. An individual selling an item is not automatically classified as a business. Owner submissions and publicly licensed directories provide additional paths to discovering businesses absent from OSM. Optional CSV import uses `name,source_url,category,location_type,service_area,website,phone,email,social_url`; up to 200 rows, 500 KB, with row errors and duplicate detection. Unknown columns such as private-address fields are ignored.
-
-### Status and evidence
-
-**Operating status** starts Unknown. A researcher can set Reported operating / temporarily closed / permanently closed only with evidence. **Research stage** remains a separate prospect decision. **Website status** reports the latest applicable HTTP/page observation, independent of the SEO score. A failed website or old license never automatically means closure. **Website identity** can be researcher-confirmed with evidence for a particular URL; changing the URL removes that confirmation from the displayed status. **Contacts** are listed/observed, not verified reachable or owner-controlled. Source and observation dates are available per contact and in exports. Search and filters include operating status, location type, source, social channels, and contact pages/forms.
-
-### Browse by neighborhood
-
-Choose **Neighborhood** beside the category filter, or click the **Neighborhood** column heading to sort A–Z; click again for Z–A. Businesses within each neighborhood sort by name. Unknown neighborhoods stay last in both directions. Neighborhood filtering also scopes Website lab batches and exports, and combines with category, website, contact and research filters.
-
-The app matches OSM coordinates locally against the [City of Pittsburgh neighborhood boundaries](https://pghbridgis.pittsburghpa.gov/federated/rest/services/Neighborhoods/FeatureServer/0), bundled October 6, 2026. The current saved directory is enriched when loaded; future collection exports include the same fields. ZIP codes are not used as neighborhood substitutes. Profiles show the matching method: mapped point or approximate area center. Missing/unmatched coordinates and shared-boundary matches remain **Unknown**. See [assets/README.md](assets/README.md) for boundary provenance and update details.
-
-### Analyze a website
-
-Open a business profile, review or enter its website URL, then choose **Analyze**. The URL does not need to be present in OSM. Findings are saved with their URL and date; business/website identity remains unverified. The Website lab shows saved findings and can analyze up to 25 matching or shortlisted websites. You can also select up to 25 directory records and choose **Analyze selected websites**.
-
-Results under 24 hours old are reused by batches unless **Recheck recent results** is checked. The profile's Analyze button always requests a fresh check. **Stop after current website** preserves completed results; the current check may take up to about 45 seconds. Closing Python stops pending work; completed findings persist in `data/website_audits.json`. Up to four previous audits are kept per business.
-
-The technical SEO score is a documented static-page heuristic, not a Google ranking score. Blocked/inconclusive checks are kept distinct from low scores. See [IMPROVEMENTS.md](IMPROVEMENTS.md) for the scoring rubric, limits, and prioritized product improvements.
-
-To use a different port or dataset:
+Collection streams progress into **View collection log**. The default Overpass source falls back to the [Private.coffee public instance](https://wiki.openstreetmap.org/wiki/Overpass_API#Public_Overpass_API_instances) after connection/gateway failures. Rate-limit responses honor their wait rather than rotating servers. Set `VICALL_OVERPASS_ENDPOINT` before launching to use an explicit endpoint. Collection has a ten-minute limit and preserves the previous snapshot on failure.
 
 ```powershell
-python app.py --port 8766
-python app.py --data-dir C:\path\to\another\dataset
+python app.py --port 8766 --data-dir ./my_research --no-browser
 ```
 
-## What we are building
-
-An assistant that helps Vicall find businesses that could benefit from SEO or website services. Given a question such as **“Which Pittsburgh cafes have verified website issues?”**, it should return a shortlist with evidence, dates, source links, and explicit unknowns.
-
-The useful differentiator is a reusable, evidence-backed business research memory: collect information once, retain it, and reuse it across questions. Measure whether this improves recommendation quality and reduces repeated research. Model training or quantization is a separate project and is not necessary for this workflow.
-
-## Project plan
-
-| Stage | Work | Completion target |
-| --- | --- | --- |
-| 1. Collect | Query OpenStreetMap through Overpass for businesses inside Pittsburgh city limits; save original responses. | Real records, reproducible query, source timestamps. |
-| 2. Clean and review | Normalize names, categories, contact fields and addresses; deduplicate OSM IDs; review possible duplicate locations. | JSONL, CSV, quality report, a manual review of 30–50 records. |
-| 3. Store | Load candidates into MongoDB. Keep website findings, contacts, and AI research separate and linked by business ID. | Repeatable imports, indexed filters, documented schema. |
-| 4. Enrich | Check listed websites; discover missing URLs using additional permitted sources and verify business identity. | Evidence about website status, contact channels, and potential issues for an initial 50 businesses. |
-| 5. Assess | Define an opportunity rubric with the client; score verified observations and keep unknowns separate. | Ranked prospects with clear reasons and evidence. |
-| 6. Add AI/API | Retrieve business records and findings, then generate grounded answers. Use exact database filters for categories/location/contact fields. | Natural-language search, business detail endpoint, CSV export. |
-| 7. Evaluate and demonstrate | Compare a baseline against retrieval with stored evidence on the same questions/businesses. | Measured results and a focused five-minute presentation. |
-
-### Scope for the first version
-
-- Pittsburgh **city**, not all of Allegheny County or the metro area.
-- Collect broadly; narrow to 1–2 categories after the client identifies good prospects.
-- Included tags: `shop`, commercial `office` candidates, `craft`, selected food/health/banking/automotive amenities, and lodging.
-- This is a candidate list: OSM does not establish whether a business is small, independently owned, active today, or a good customer.
-- Unnamed and explicitly inactive candidates are excluded from the cleaned list but retained in raw data. Obvious noncommercial offices are excluded; other false positives can remain.
-- OSM is not a complete business census. Missing website, phone, email, or address fields mean **unknown**. They do not prove that a business lacks those things.
-- A source's last OSM edit date is not the date its business details were independently verified.
-
-## Data collection: implemented
-
-`collect_osm.py` uses Python's standard library, with no API key or third-party package required.
-
-The first live collection on **October 6, 2026** returned 2,530 OSM elements. Cleaning produced **2,410 named business candidates**, excluded 75 unnamed elements and 45 inactive/nonbusiness candidates, and flagged 31 records for possible duplicate review.
-
-| Field available | Candidate records |
-| --- | ---: |
-| Usable listed website (not yet independently verified) | 1,035 |
-| Normalized phone | 1,044 |
-| Email passing basic syntax checks | 145 |
-| House number and street | 1,496 |
-
-All seven cleaning tests passed, and exported counts, unique source IDs, provenance fields, and duplicate references were checked. Websites, business activity, and decision-makers have not been independently verified. The optional MongoDB loader has not been run against a database.
-
-1. Locate the Pittsburgh administrative boundary within Pennsylvania; stop unless exactly one relation matches.
-2. Query nodes, ways, and relations inside its Overpass area. Ways/relations use a bounding-box center as their approximate coordinate.
-3. Cache complete responses, preserve query and retrieval time, reject partial/error responses, and retry temporary failures conservatively.
-4. Clean names and contacts; retain original tag values for audit and reprocessing.
-5. Use `osm:<type>:<id>` as the stable source-record ID. Matching names within 40 meters are flagged as possible duplicates, not automatically merged. This is a review heuristic and can miss duplicates.
-6. Export a CSV, JSONL, and quality report. CSV cells are protected against formula interpretation from free-text source values.
-
-### Run
-
-With a normal Python 3.10+ installation:
+## Offline demonstration
 
 ```powershell
-python collect_osm.py
-python -m unittest -v
+python demo.py
+python app.py --data-dir ./demo_data
 ```
 
-On this computer the `python`/`py` Windows aliases do not currently launch. The working bundled runtime is:
+The demo contains **eight fictional organizations**, fictional public-role records, and fictional website findings. It is clearly labeled and kept separate from live data. `demo.py` refuses to overwrite a nonempty folder; use another `--output` directory for a fresh demo.
+
+Suggested demonstration:
+
+1. In **Research assistant**, ask “Find accounting firms” and require a public contact channel and observed technical issues.
+2. Inspect the dated evidence and public role; save the result and export its CSV.
+3. Search for districts using the organization filter; inspect a district and its child school.
+4. Switch the purpose to **Find a provider** and search for “legal advice.”
+5. Repeat a search and show retrieval using retained evidence with zero external page requests.
+
+Do not enable network automation for the fictional demo. Its `example.test` URLs are reserved for demonstrations.
+
+## Implemented workflows
+
+- Directory search, filters, pagination, profiles, notes, stages, and shortlists.
+- OSM collection, normalization, duplicate flags, neighborhood matching, and attribution. Education amenities are included; a school location does not automatically become a district organization.
+- Public-directory and CSV discovery inbox, manual promotion, service-area records, and bounded website contact research.
+- Five official-source office/district starter entries. **Add office & district starter sources** places them in the inbox for review. No buying intent or website defect is asserted; suburbs have explicit service areas.
+- Organization/service reviews, school/district types, parent relationships, and cycle prevention.
+- Reviewed public person/role records with URLs, dates, supporting text, and optional business channels. Person JSON-LD becomes an unreviewed suggestion. Purchasing authority is not inferred.
+- Provider/prospect/partner search with transparent heuristic factors and unknowns. Sector and text matching are supported; exact controls enforce contact, role, and website requirements.
+- Saved searches, answer history, sourced CSV export, and JSON evidence download.
+- Optional AI using bounded retrieved evidence, cited references, token usage, and fallback to evidence search.
+- Static audits, sampled-page checks, repeated metadata observations, and previous contact-research snapshots.
+- Optional desktop/mobile rendering, screenshots, overflow, missing alt attributes, and unlabeled controls.
+- SQLite persistence, legacy import, backups, versioned dataset publication, resumable jobs, and stale workflow-write detection.
+- Authenticated team-server adapter with viewer/researcher/admin roles, CSRF protection, and access logging.
+
+## Enable AI
+
+Configure credentials in the process environment. They are not sent to the browser or committed.
 
 ```powershell
-$pythonExe = 'C:\Users\DELL\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe'
-& $pythonExe collect_osm.py
-& $pythonExe -m unittest -v
+$env:OPENAI_API_KEY = '<your API key>'
+$env:VICALL_AI_MODEL = '<a Responses model available to your account that supports structured outputs>'
+python app.py
 ```
 
-Commands should run from `C:\Users\DELL\Desktop\Hackathon`.
+Select **Use AI to interpret evidence**. Retrieved public evidence and the question are sent to the provider; private research notes are excluded. Model calls may incur provider charges. The checkbox explicitly enables a call.
+
+The model's cited business/evidence IDs are validated. This checks reference integrity, **not semantic truth**; interpretations require review. Failed/invalid responses do not replace evidence results. Live-provider validation requires your credentials.
+
+Implementation reference: [OpenAI structured outputs](https://developers.openai.com/api/docs/guides/structured-outputs?api-mode=responses).
+
+## Browser-rendered checks
+
+Install the optional worker into your Python environment:
 
 ```powershell
-# Fresh snapshot; otherwise a repeated run reuses the cache.
-& $pythonExe collect_osm.py --refresh
-
-# Re-clean saved data without contacting OSM.
-& $pythonExe collect_osm.py --input data/raw/businesses.json
+python -m pip install -r requirements-browser.txt
+python -m playwright install chromium
+python app.py
 ```
 
-Outputs:
+An installed Edge browser is used on Windows if Playwright's Chromium is absent. Set `$env:VICALL_BROWSER_CHANNEL = 'msedge'` to choose it explicitly. A project-local `.browser-deps` install is also supported.
 
-| Path | Purpose |
+Open a profile → **Rendered website audit** → run → refresh. The bounded subprocess routes HTTP resources through the vetted, TLS-verified fetcher. Private-network targets, non-GET requests, third-party resources, service workers, and WebSockets are blocked. Robots rules and request spacing apply.
+
+Screenshots can omit resources; inspect the blocked-resource count. These checks do **not** produce Lighthouse, Google ranking, or Core Web Vitals scores. The static score remains a heuristic.
+
+## Persistence and backup
+
+`data/workspace.sqlite3` stores workflow documents, reviewed contacts, organization reviews, saved searches, answers, and the loaded organization snapshot. Existing valid workspace JSON is imported on first access. JSON compatibility exports remain; after migration, SQLite is authoritative. Editing a JSON export does not update the application.
+
+Raw OSM responses and processed exports remain files. Collection jobs are versioned in `data/jobs/`; an active-dataset pointer switches to a completed snapshot. Old-path copies are compatibility exports. Unfinished research/audit tasks survive restarts and can be resumed explicitly. Closing Python does not silently restart a queue.
+
+**Back up research** creates a consistent SQLite backup. Also archive the data folder to retain raw files, dataset versions, and rendered artifacts. History grows over time. Run one application process per data directory.
+
+## API and external agents
+
+The contract is [docs/openapi.json](docs/openapi.json); regenerate it with `python build_openapi.py`.
+
+For local external-agent access, set `VICALL_API_TOKEN` to a long random server-side credential before launching. Send `Authorization: Bearer <credential>`. Browser requests use the temporary `X-Vicall-Token`. Keep credentials out of URLs.
+
+| Endpoint | Purpose |
 | --- | --- |
-| `data/raw/boundary.json` | Boundary query response and metadata |
-| `data/raw/businesses.json` | Original business response and collection metadata |
-| `data/collection_query.overpassql` | Exact business query |
-| `data/cache/` | Saved responses keyed by endpoint and query |
-| `data/processed/businesses.jsonl` | One cleaned business candidate per line |
-| `data/processed/businesses.csv` | Human review/export |
-| `data/processed/quality_report.json` | Counts, categories, missing fields, duplicate flags |
+| `POST /api/search` | Search retained evidence and return explained matches |
+| `POST /api/ask` | Search and optionally interpret with AI |
+| `GET /api/business?id=…` | Business, public roles, and evidence |
+| `POST /api/workflow` | Notes, stage, shortlist, and status reviews |
+| `POST /api/organization` | Organization/services/parent review |
+| `POST /api/person` | Sourced public person/role |
+| `POST /api/saved-search` | Save reusable criteria |
+| `POST /api/export` | CSV with contacts, findings, notes, and attribution |
+| `POST /api/research-resume` | Resume unfinished research |
+| `POST /api/audit-resume` | Resume unfinished static audits |
 
-Raw/processed files are replaced on successful runs; the cache keeps distinct queries, not a historical snapshot of every refresh. Archive dated snapshots before refreshing if history is needed. Records absent on a future run are not automatically marked closed.
+Example `/api/ask` body:
 
-## Storage choice
-
-**MongoDB is a reasonable next step**, because each business can accumulate different website findings and research evidence. SQL would also work; there is no requirement to use NoSQL for AI. Start with JSONL, then add MongoDB once the first dataset is reviewed.
-
-Suggested collections:
-
-| Collection | Contents |
-| --- | --- |
-| `osm_businesses` | Cleaned OSM candidates and source metadata |
-| `website_observations` | Business ID, URL, check time, observed issue, evidence, confidence |
-| `business_contacts` | Public business contact, role if verified, source URL and verification date |
-| `research_memory` | Business ID, evidence-backed summaries, evidence references, model/version, freshness |
-
-Do not treat OSM `operator` as a decision-maker's name. Keep identity-confirmed contacts and AI inferences distinct.
-
-An optional loader is provided in `load_mongo.py`. Once a local MongoDB server or an Atlas database is available:
-
-```powershell
-& $pythonExe -m pip install -r requirements-mongo.txt
-$env:MONGODB_URI = 'mongodb://localhost:27017/'
-& $pythonExe load_mongo.py
+```json
+{"question":"Find accounting firms","intent":"prospects","require_contact":true,"require_website_issue":true,"limit":10,"use_ai":false}
 ```
 
-The loader upserts by OSM ID, creates category/status/geospatial indexes, and stores arbitrary OSM tag keys as key/value pairs. It updates only the OSM collection. MongoDB setup and a live import are not part of the completed collection step.
+Workflow clients should include the last-read `expected_updated_at` (or `null` for a new workflow). Stale updates are rejected. Agent systems can call the API; a dedicated MCP server is not included.
 
-## Website enrichment: next
+## Shared team server
 
-For a small initial sample, record HTTP status, redirects, page title, meta description, HTTPS, mobile viewport, and visible business contact information. Mark timeouts or bot blocks as unknown rather than a bad website. Use a browser audit when JavaScript rendering or performance matters. A missing meta description alone does not establish a serious SEO problem.
+The authenticated WSGI adapter serves **one shared workspace**, not isolated tenants.
 
-Validate that each discovered website belongs to the business by matching its name and address/contact details. A chain's central website may not identify the local decision-maker. Respect website terms, robots rules, and conservative request rates. For an eventual URL-fetching API, validate targets and redirects to prevent requests to private/local network addresses.
+```powershell
+python -m pip install -r requirements-server.txt
+python manage_users.py yourname --role admin
+python manage_users.py teammate --role researcher
+python serve.py --data-dir ./data --users ./users.json
+```
 
-Every finding should retain its URL, observation time, evidence, and method. Generate website/SEO recommendations after verification; modifying client websites is a separate authorized step.
+Passwords are entered interactively and stored as salted hashes. Restart after account changes. `users.json` is ignored by Git. Viewers can browse/search/export; researchers maintain research; admins manage collection, automation, starter imports, and backups. Browser writes require the CSRF token.
 
-## AI and evaluation
+The server binds to loopback. Remote hosting requires a TLS reverse proxy, protected configuration, backups, and deployment-specific monitoring. No public service has been deployed. Set `VICALL_TEAM_API_TOKEN` to a random credential of at least 32 characters for team API clients; it grants researcher access.
 
-Start with structured queries and rules. Add retrieval of website text/evidence once it exists; embeddings are useful for semantic text search, not required for category and city filters. Have the AI cite evidence and say when a claim is unknown. Treat retrieved page text as untrusted data.
+## Validation
 
-Useful demo measurements:
+```powershell
+python -m unittest discover -v
+python evaluate.py
+```
 
-- Collection: number of named candidates and percentage with usable website, phone, email, and full street address.
-- Quality: business/category/website identity accuracy on a manually reviewed sample; duplicate rate and unresolved cases.
-- Client value: precision among the top 10 prospects, reviewed against the client's rubric, compared with a simple category-only baseline.
-- Research memory: input tokens, repeated page fetches, latency, and answer accuracy for the same questions with and without retained evidence.
+[docs/evaluation.json](docs/evaluation.json) compares evidence requirements with a sector/text-only baseline on four **synthetic** scenarios. It reports expected/result sets, precision, recall, context characters, local retrieval latency, and external page requests. Context characters are not measured model tokens.
 
-Report measured values, sample size, and failure cases. Do not claim token savings, revenue impact, lead conversion, or citywide coverage before measuring them.
+Before claiming client value, review a real sample with Reece and measure relevance, contact/identity correctness, citation support, repeated fetches, actual tokens, and latency. Fixture evaluation establishes no revenue, conversion, citywide coverage, or real-data accuracy claim.
 
-Confirm with the client: target categories, city vs. metro geography, independent businesses vs. chains, what makes a promising customer, and which fields are essential before outreach.
+See [docs/implementation-status.md](docs/implementation-status.md) for remaining validation. Historical collection notes are preserved in [docs/legacy-project-notes.md](docs/legacy-project-notes.md); their counts are not asserted as this checkout's current dataset.
 
-## Sources and attribution
+OSM-derived data is © OpenStreetMap contributors under [ODbL](https://www.openstreetmap.org/copyright). Other sources retain their own provenance and terms. Source dates indicate observations, not verified operation. Missing information remains unknown.
 
-- [Overpass query language](https://wiki.openstreetmap.org/wiki/Overpass_API/Overpass_QL)
-- [Overpass public service guidance](https://dev.overpass-api.de/overpass-doc/en/preface/commons.html): batch and cache requests; use stored data for application queries rather than querying public Overpass per user question.
-- [OSM shop/contact tags](https://wiki.openstreetmap.org/wiki/Key:shop)
-- [MongoDB upserts](https://www.mongodb.com/docs/languages/python/pymongo-driver/current/crud/update/)
-- [OpenStreetMap copyright and license](https://www.openstreetmap.org/copyright)
+## Added research and audit controls
 
-OSM-derived data is © OpenStreetMap contributors and licensed under ODbL. Include attribution and the license link in directory/API/export displays. Published derivative databases can carry share-alike obligations; keeping sources separate helps track provenance but is not itself a license exemption.
+Directory website status now uses separate dot and text containers so labels remain readable. Profiles support editing sourced public roles with stale-save protection. Staff-page cards and name/role headings produce unreviewed suggestions; purchasing authority still requires human confirmation.
+
+The research assistant supports desired-service and complementary-partner terms, shared ranking weights, and optional AI query planning. Service matching compares sourced text terms; it is not embedding-based semantic matching. Explicit filters override planned filters. Organization and contact API clients should send the last-read `expected_revision` (or `null` for a new record).
+
+Collection progress survives restart. Data center controls stop collection or resume an unfinished job using available saved source responses. A stopped or failed collection preserves the published directory.
+
+Business profiles offer bounded same-origin link checks and Google Lighthouse lab reports. Temporary failures remain inconclusive. PageSpeed can require API access/quota: set `PAGESPEED_API_KEY` in the server environment when needed. Real-user Core Web Vitals use a separate `CRUX_API_KEY` with Chrome UX Report API enabled (or the PageSpeed key if enabled for both). Google receives the chosen public website URL; research notes are not sent. Lab and real-user observations remain distinct, dated reports with history and downloadable evidence. Live Google and AI calls have not been validated without configured credentials.
+
+New endpoints: `POST /api/matching-settings`, `POST /api/collect-cancel`, `POST /api/collect-resume`, `POST /api/link-audit`, `POST /api/performance-audit`, `POST /api/field-audit`, and corresponding saved-report GET endpoints. See the generated OpenAPI contract for request fields.
