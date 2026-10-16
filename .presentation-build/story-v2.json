@@ -1,0 +1,65 @@
+[
+  {
+    "title": "Pittsburgh IQ",
+    "seconds": 20,
+    "cue": "Introduce the team, then move directly into the challenge.",
+    "script": "A local business can offer an excellent service and still be difficult to discover. Pittsburgh IQ gives people a place to research local organizations and decide what to investigate next. We are Rayane El Yasti, Oleg Hartman, Alexander Kearney, and Noah White, from Duquesne University.",
+    "source": "Team names from the supplied reference deck. Challenge 3 brief."
+  },
+  {
+    "title": "The challenge",
+    "seconds": 35,
+    "cue": "State the brief clearly. Connect discovery to a real business decision.",
+    "script": "The challenge asked us to use AI to turn scattered local business information into actionable research. For Vicall, that means finding organizations that could benefit from website and SEO services. The broader opportunity includes finding suppliers and business partners. Our response combines a searchable directory with a research assistant. The question guiding the product is simple: what does someone need to know before starting a useful business conversation?",
+    "source": "Hackathon Plan_Info Sheet.txt, Challenge 3. Client requirements include professional offices, school districts, browser access and wider buying and selling use cases."
+  },
+  {
+    "title": "A prospect list is only the beginning",
+    "seconds": 35,
+    "cue": "Tell this as an illustrative scenario, not an actual customer story.",
+    "script": "Picture a small digital agency looking for its next customer. It finds a local office, opens the website, searches for a contact, and writes down a possible issue. Then someone asks: where did that information come from? Is it current? Has a teammate checked it already? A list of names cannot answer those questions. Our product keeps the organization, its evidence, and the next research step together, so the next person can continue the investigation.",
+    "source": "Illustrative agency scenario, not a reported customer outcome. Persistent evidence and research workflow documented in README.md."
+  },
+  {
+    "title": "A working directory of Pittsburgh",
+    "seconds": 40,
+    "cue": "Point to the screenshot, then the figures. Do not read every label.",
+    "script": "The story starts with a working directory of 2,603 Pittsburgh business candidates. Our saved snapshot includes 1,059 listed websites and 146 email contacts. A researcher can narrow that starting point by neighborhood, category, and available information. These are public listings that still need review. An empty website field is a gap in our data, rather than proof that a business has no website. The directory gives the agency a research starting point, with uncertainty visible from the beginning.",
+    "source": "docs/presentation-screenshots/01-business-directory.jpg and 06-data-coverage.jpg. October 14, 2026 OSM snapshot. Counts describe unverified listings."
+  },
+  {
+    "title": "A question leads to inspectable evidence",
+    "seconds": 35,
+    "cue": "Point to the result and its dated references.",
+    "script": "Now the researcher asks a question. In this captured example, a search for legal services returned 22 candidates using saved evidence, with no new external page requests. A result includes public contact references, source links, and observation dates. The purpose can change from finding a provider to researching prospects or partners. The system also identifies gaps, such as an unreviewed decision-maker role. That makes follow-up research specific, and gives a teammate something they can check.",
+    "source": "docs/presentation-screenshots/04-sourced-research-result.jpg. Legal-provider example, not evidence of an actual sales opportunity. Reference IDs and dates support inspection, not guaranteed accuracy."
+  },
+  {
+    "title": "A website finding gives the conversation context",
+    "seconds": 40,
+    "cue": "Show the saved check, then explain what the agency can do next.",
+    "script": "For the agency, the next step is website research. Website Lab saves the URL, response, observation time, and technical findings. A missing heading, for example, creates a concrete question to investigate before outreach. Failed or blocked requests remain inconclusive. The score describes a static technical checklist and does not measure Google rankings. The researcher can then save notes, organize a shortlist, and export the findings. The intended value is less repeated searching and a better prepared conversation. A client pilot still needs to measure that value.",
+    "source": "docs/presentation-screenshots/08-website-audit-detail.jpg. Actual Size static check, HTTP 200, score 80. README.md for notes, shortlist and export functionality. Time savings and business outcomes remain hypotheses."
+  },
+  {
+    "title": "AI works with the research already collected",
+    "seconds": 35,
+    "cue": "Explain the sequence without jargon. Keep the limitation brief and clear.",
+    "script": "The AI workflow begins with relevant saved records. Retrieval selects a focused evidence set, an optional model interprets it, and the application checks the references it returns. Users can inspect the sources behind the answer. We also tested a small local model on an eight-gigabyte laptop, with one response taking about twelve seconds. It misread part of the evidence, so local AI remains experimental. Checking citations helps trace an answer, while human review remains necessary to judge its meaning.",
+    "source": "intelligence.py retrieval, planning, generation and reference validation. Local Qwen2.5-0.5B Q4 test: 11656 ms including load, fictional evidence, observed misinterpretation. Cloud mode implemented but not live-tested in this session."
+  },
+  {
+    "title": "Focused retrieval, measured",
+    "seconds": 35,
+    "cue": "Emphasize what the test measured and keep the boundary clear.",
+    "script": "We evaluated retrieval with four synthetic scenarios. All four returned the exact expected result sets. In the office-prospect scenario, the system selected 2,549 context characters from a full set of 14,897. That is about 83 percent less text for the model to consider. This measures the retrieval mechanism on a small fictional test set. It does not establish real-world prospect quality or token savings. Our next benchmark will use client-reviewed organizations and measure relevance alongside actual research time.",
+    "source": "docs/evaluation.json: exact_set_matches 4/4. Office-prospect case 2549 versus 14897 characters, 82.889% reduction. Synthetic evaluation had no model call."
+  },
+  {
+    "title": "Research that the next person can continue",
+    "seconds": 25,
+    "cue": "Return to the agency story and finish cleanly.",
+    "script": "The agency now has a place to find organizations, inspect evidence, and keep what it learns. SQLite storage, backups, resumable jobs, and an API provide foundations for continued use. Next comes a focused pilot with twenty offices and school districts. Pittsburgh IQ turns a starting list into research that the next person can continue, helping local businesses prepare for better conversations.",
+    "source": "README.md and docs/implementation-status.md. Proposed pilot, not an existing commitment. Public deployment and larger-scale validation remain future work."
+  }
+]

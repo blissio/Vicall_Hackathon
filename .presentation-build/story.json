@@ -1,0 +1,72 @@
+[
+  {
+    "title": "Who should Reece call next?",
+    "seconds": 25,
+    "cue": "Pause after the opening question. Let the room answer it silently.",
+    "script": "Imagine Reece opens his laptop tomorrow morning. Vicall helps businesses improve their websites. But before he can help anyone, he has to answer a simpler question: who should I call next? We built Pittsburgh IQ to make that decision better informed, and to make sure yesterday’s research is still useful tomorrow.",
+    "source": "User-provided Hackathon Plan_Info Sheet.txt: Vicall mission and Challenge 3. Opening is an illustrative scenario, not a reported client event."
+  },
+  {
+    "title": "Reece asked for a citywide resource",
+    "seconds": 25,
+    "cue": "Point to the client’s words, then look back at the judges.",
+    "script": "We started with website research for Vicall. Then Reece widened the idea. He wanted a smart Pittsburgh directory to help people buy services and build relationships to sell. He named professional offices and school districts as important customers. That feedback changed our direction: a shared research workflow around local organizations, with Vicall as the first use case.",
+    "source": "User-provided email from Reece Way: 'I think like a smart Pittsburgh business directory would be cool for everyone.' Client also identified white-collar offices and school districts."
+  },
+  {
+    "title": "A real starting point",
+    "seconds": 25,
+    "cue": "Point to the candidate count, then the website count.",
+    "script": "Here is the working directory. Our saved Pittsburgh snapshot contains 2,603 business candidates, including 1,059 with listed websites. You can narrow the directory by neighborhood, category, or available contact information. These are starting points for research. A listing does not prove that an organization is operating, and a missing website field does not prove that it has no website.",
+    "source": "docs/presentation-screenshots/01-business-directory.jpg and 06-data-coverage.jpg. OSM snapshot collected October 14, 2026. Counts are candidate/listing coverage, not verified businesses."
+  },
+  {
+    "title": "One question becomes a focused search",
+    "seconds": 30,
+    "cue": "Show the query and selected purpose. This is a captured product walkthrough.",
+    "script": "Now imagine someone needs a legal provider. We choose that purpose, select the legal sector, and ask a straightforward question. This search returned 22 candidates from retained evidence, without fetching another external page. The same interface supports prospect research and potential partners. For Vicall, the next step would be to focus on relevant offices, then investigate which ones have a website issue worth discussing. The requirements are visible and adjustable.",
+    "source": "docs/presentation-screenshots/03-research-assistant.jpg and 04-sourced-research-result.jpg. The captured legal-provider query returned 22 matches and zero external page requests."
+  },
+  {
+    "title": "The evidence stays beside the result",
+    "seconds": 35,
+    "cue": "Point to the source links and dates, then the unknowns.",
+    "script": "A useful result needs more than a company name. Here, Beroes Law Center comes with public references supporting the match. Each observation keeps its source and date. The app also says what it does not know, including decision-maker roles and confirmed services. Researchers can add a public person and role with evidence, but a job title does not prove purchasing authority. The next human review becomes specific and traceable.",
+    "source": "docs/presentation-screenshots/04-sourced-research-result.jpg and 05-business-profile.jpg. Reviewed role workflow in intelligence.py and ui/intelligence-ui.js. No reviewed decision-maker is asserted for this business."
+  },
+  {
+    "title": "A concrete reason to investigate",
+    "seconds": 30,
+    "cue": "Point to the saved URL and checklist. Avoid describing the score as a search ranking.",
+    "script": "For Vicall, website analysis makes the research more actionable. This saved check records the exact URL, response, observation time, and technical findings. It can flag details such as a missing main heading for a person to investigate. A blocked request stays inconclusive. The score is a static checklist, not a Google ranking. That distinction matters: the goal is a better informed conversation with a business, supported by evidence we can actually show.",
+    "source": "docs/presentation-screenshots/08-website-audit-detail.jpg. Actual Size sampled October 15, 2026: HTTP 200, static score 80, heading and canonical recommendations. Observations require rendered and identity review."
+  },
+  {
+    "title": "Tomorrow’s research starts ahead",
+    "seconds": 30,
+    "cue": "Slow down on 'the work stays'. This is the value transition.",
+    "script": "When that investigation ends, the work stays. Profiles retain notes and source records. Shortlists and research stages organize the next steps. Exports let someone take the findings into another workflow. Underneath, SQLite persistence, backups, and resumable jobs support continued use. We also implemented a role-based team adapter and a documented API. Those are foundations for reuse and maintenance. Public deployment and larger-scale operation still need validation.",
+    "source": "README.md; storage.py; serve.py; docs/openapi.json; docs/implementation-status.md. Single shared workspace, not multitenant. No public deployment or demonstrated large-scale operation claimed."
+  },
+  {
+    "title": "AI interprets retained evidence",
+    "seconds": 40,
+    "cue": "Explain the sequence in plain language. Keep the local experiment limitation audible.",
+    "script": "AI fits into that memory. First, retrieve relevant saved evidence. Then give the model a bounded context and check its returned references. Cloud mode supports question planning and answers. We also tested a small local model on this eight-gigabyte laptop. One fictional-evidence test took about twelve seconds, then unloaded. It also misread evidence. So we label it experimental, show sources, and keep human review central. Reference validation catches unsupported citations; it cannot guarantee that an interpretation is true.",
+    "source": "intelligence.py generate_answer, plan_query, validate_answer; local_ai.py. Session local smoke test: Qwen2.5-0.5B-Instruct Q4_K_M, 11,656 ms including load, 133 input and 77 output tokens. Test contained a misinterpretation. Current screenshot launch has local AI disabled. Official model: https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF . Runtime: https://github.com/ggml-org/llama.cpp ."
+  },
+  {
+    "title": "We measured the retrieval",
+    "seconds": 35,
+    "cue": "Emphasize 'synthetic' and 'characters'. Do not imply measured token savings.",
+    "script": "We tested the retrieval itself. Across four synthetic scenarios, it returned the exact expected result sets in all four. In the office-prospect case, it selected 2,549 context characters instead of 14,897, about 83 percent fewer. That demonstrates focused retrieval, not measured token savings or revenue impact. The next benchmark needs Reece’s judgment: are the organizations relevant, and is the evidence useful enough for a real next step?",
+    "source": "docs/evaluation.json: four fictional fixtures, exact_set_matches 4/4. Office-prospect scenario retrieved_context_characters 2549, full_context_characters 14897. (1-2549/14897)*100 = 82.889%. No live model or external fetch in this evaluation."
+  },
+  {
+    "title": "The next conversation starts informed",
+    "seconds": 25,
+    "cue": "Return to Reece. End cleanly, then stop speaking.",
+    "script": "So return to Reece’s laptop. He has a place to find organizations, inspect what supports a match, and retain the research for the next conversation. Our next step is a small pilot with him, reviewing twenty offices and districts and measuring relevance and research time. Pittsburgh IQ gives that pilot a working foundation. The value we want to prove is simple: less repeated searching, and more useful local business relationships.",
+    "source": "Proposed next-step pilot, not an existing client commitment or measured outcome. Client email supports offices, districts, buying and selling relationships. No customer acquisition or time-saving outcome claimed."
+  }
+]
